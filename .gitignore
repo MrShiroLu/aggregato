@@ -1,2 +1,10 @@
 # Rust build artifacts
 target/
+
+# Ink! contract build artifacts (rebuild with: cargo +nightly-2024-12-01 contract build)
+contracts/aggregato_verifier/target/
+
+# Noir/Barretenberg artifacts
+circuits/*/target/
+circuits/**/Prover[A-Z]*.toml
+circuits/**/tmp_*/
