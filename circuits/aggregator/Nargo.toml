@@ -1,0 +1,6 @@
+[package]
+name = "aggregator"
+type = "bin"
+authors = [""]
+
+[dependencies]
