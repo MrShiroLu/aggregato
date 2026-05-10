@@ -8,3 +8,11 @@ contracts/aggregato_verifier/target/
 circuits/*/target/
 circuits/**/Prover[A-Z]*.toml
 circuits/**/tmp_*/
+
+# Benchmark output (generated at runtime by the orchestrator)
+benchmark_latest.json
+benchmark_history.json
+
+# Temp files
+/tmp/
+*.log
