@@ -1,0 +1,32 @@
+[package]
+name = "aggregato_verifier"
+version = "0.1.0"
+authors = ["Aggregato Team"]
+edition = "2021"
+
+[lib]
+name = "aggregato_verifier"
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
+]
+ink-as-dependency = []
+
+[dependencies]
+ink = { version = "5", default-features = false }
+scale = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2.6", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+ink_e2e = { version = "5" }
+schnorrkel = { version = "0.11", default-features = false, features = ["std"] }
+
+[profile.release]
+overflow-checks = false
+opt-level = "z"
+strip = "symbols"
