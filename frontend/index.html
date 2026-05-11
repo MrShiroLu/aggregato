@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Aggregato — Parallel ZK Proof Aggregation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          bg:       '#121218',
+          panel:    '#1A1A24',
+          panel2:   '#1F1F2B',
+          line:     '#2A2A36',
+          line2:    '#363645',
+          ink:      '#E6E6EC',
+          mute:     '#8A8A9A',
+          mute2:    '#5C5C6E',
+          accent:   '#9CB4D4',
+          accentDk: '#7C94B4',
+          ok:       '#A8C8A0',
+          warn:     '#D4C49C',
+          err:      '#D49C9C',
+        },
+      },
+    },
+  };
+</script>
+<link rel="stylesheet" href="/landing.css" />
+</head>
+<body class="bg-bg text-ink">
+
+  <!-- ──────────────────────────────────────────────────────────── Header -->
+  <header class="border-b border-line sticky top-0 z-30 bg-bg/95 backdrop-blur">
+    <div class="max-w-[1320px] mx-auto px-8 py-4 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3">
+        <img src="/logo.svg" width="28" height="28" alt="Aggregato logo" />
+        <div class="flex items-baseline gap-3">
+          <span class="text-[17px] font-semibold tracking-tight text-ink">Aggregato</span>
+        </div>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-7 text-[12px] text-mute">
+        <a href="#overview"     class="hover:text-ink transition-colors">Overview</a>
+        <a href="#jam"          class="hover:text-ink transition-colors">JAM model</a>
+        <a href="#architecture" class="hover:text-ink transition-colors">Architecture</a>
+        <a href="#run"          class="hover:text-ink transition-colors">Run it</a>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <a href="/run.html"
+           class="text-[11px] tracking-[0.16em] uppercase px-4 py-2 border border-accent bg-accent text-bg hover:bg-accentDk hover:border-accentDk transition-colors">
+          ▶ Open Run
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ──────────────────────────────────────────────────────────── Hero -->
+  <section id="overview" class="relative border-b border-line">
+    <div class="relative max-w-[1320px] mx-auto px-8 py-56">
+      <div class="max-w-3xl">
+        <div class="text-[10px] tracking-[0.22em] uppercase text-accent mb-6">01 · overview</div>
+        <h1 class="text-[56px] leading-[1.05] font-medium tracking-tight text-ink">
+          Parallel ZK proof aggregation,<br/>
+          <span class="text-accent">accumulated to one root.</span>
+        </h1>
+        <p class="mt-6 text-[16px] leading-relaxed text-mute max-w-2xl">
+          One big ZK proof is slow. Many small proofs, generated in parallel and folded
+          into a single Merkle root, is fast — and the on-chain verifier still only
+          checks one signature.
+        </p>
+        <p class="mt-3 text-[13px] leading-relaxed text-mute2 max-w-2xl">
+          Aggregato is a JAM-inspired orchestrator: <span class="text-accent">Refine</span> (prove
+          N chunks in parallel with Noir + Barretenberg) → <span class="text-accent">Accumulate</span>
+          (binary Merkle fold) → <span class="text-accent">OnTransfer</span> (sr25519-signed
+          extrinsic to an ink! verifier on Portaldot).
+        </p>
+        <div class="mt-10 flex flex-wrap items-center gap-4">
+          <a href="/run.html"
+             class="text-[12px] tracking-[0.16em] uppercase px-5 py-3 border border-accent bg-accent text-bg hover:bg-accentDk hover:border-accentDk transition-colors">
+            ▶ Open Run dashboard
+          </a>
+          <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">
+            parallel zk proof aggregation · jam-inspired
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────────────────────── Numbers band -->
+  <section class="border-b border-line">
+    <div class="max-w-[1320px] mx-auto px-8 py-14">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
+        <div class="bg-panel p-7">
+          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">sequential baseline</div>
+          <div class="mt-3 font-mono text-[40px] tabular-nums leading-none text-ink" data-bench="sequential">—</div>
+          <div class="mt-2 text-[12px] text-mute">single-threaded prove + verify</div>
+        </div>
+        <div class="bg-panel p-7">
+          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">parallel (<span data-bench="workers">—</span> workers)</div>
+          <div class="mt-3 font-mono text-[40px] tabular-nums leading-none text-ink" data-bench="parallel">—</div>
+          <div class="mt-2 text-[12px] text-mute">eight Barretenberg workers in parallel</div>
+        </div>
+        <div class="bg-panel2 p-7 border-l border-accent">
+          <div class="text-[10px] tracking-[0.18em] uppercase text-accent">speedup</div>
+          <div class="mt-3 font-mono text-[40px] tabular-nums leading-none text-accent" data-bench="speedup">—</div>
+          <div class="mt-2 text-[12px] text-mute">measured · last benchmark run</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────────────────────── JAM model -->
+  <section id="jam" class="border-b border-line">
+    <div class="max-w-[1320px] mx-auto px-8 py-24">
+      <SectionHeader
+        kicker="02 · technical philosophy"
+        title="The JAM model, three primitives."></SectionHeader>
+
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
+        <JamCard
+          idx="01"
+          name="Refine"
+          tagline="Split → prove in parallel."
+          body="Large ZK circuits are split into independent sub-circuits. Multiple provers — simulating JAM cores — generate proofs for these segments concurrently using Noir + Barretenberg.">
+          <div class="grid grid-cols-4 gap-1.5 mt-5">
+            <ChunkPill i="0" pct="100"></ChunkPill>
+            <ChunkPill i="1" pct="100"></ChunkPill>
+            <ChunkPill i="2" pct="100"></ChunkPill>
+            <ChunkPill i="3" pct="100"></ChunkPill>
+            <ChunkPill i="4" pct="100"></ChunkPill>
+            <ChunkPill i="5" pct="100"></ChunkPill>
+            <ChunkPill i="6" pct="100"></ChunkPill>
+            <ChunkPill i="7" pct="100"></ChunkPill>
+          </div>
+        </JamCard>
+
+        <JamCard
+          idx="02"
+          name="Accumulate"
+          tagline="Fold chunk roots into one."
+          body="Each chunk's Pedersen root becomes a leaf of a binary Merkle tree. Pairs are hashed level-by-level until a single root remains — depth 3 for 8 leaves, signed once with sr25519.">
+          <!-- tree mini -->
+          <div class="mt-5 flex flex-col items-center gap-2.5">
+            <div class="px-2 py-0.5 border border-accent text-accent text-[10px]">root</div>
+            <div class="flex gap-8"><div class="w-2.5 h-2.5 bg-accent"></div><div class="w-2.5 h-2.5 bg-accent"></div></div>
+            <div class="flex gap-3">
+              <div class="w-2.5 h-2.5 bg-accent"></div>
+              <div class="w-2.5 h-2.5 bg-accent"></div>
+              <div class="w-2.5 h-2.5 bg-accent"></div>
+              <div class="w-2.5 h-2.5 bg-accent"></div>
+            </div>
+            <div class="flex gap-1.5">
+              <div class="w-2 h-2 bg-accentDk"></div><div class="w-2 h-2 bg-accentDk"></div>
+              <div class="w-2 h-2 bg-accentDk"></div><div class="w-2 h-2 bg-accentDk"></div>
+              <div class="w-2 h-2 bg-accentDk"></div><div class="w-2 h-2 bg-accentDk"></div>
+              <div class="w-2 h-2 bg-accentDk"></div><div class="w-2 h-2 bg-accentDk"></div>
+            </div>
+          </div>
+        </JamCard>
+
+        <JamCard
+          idx="03"
+          name="OnTransfer"
+          tagline="Submit & verify on-chain."
+          body="The aggregated proof is signed with sr25519 and submitted to a Portaldot smart contract written in Ink!. Verification consumes POT for gas.">
+          <div class="mt-5 space-y-2 text-[11px]">
+            <Hop label="—" bench="ws"></Hop>
+            <Hop label="—" bench="contractShort"></Hop>
+            <Hop label="submit_verified_root(…)"></Hop>
+            <div class="mt-3 px-3 py-2 border border-accent text-accent flex items-center justify-between">
+              <span class="text-[10px] tracking-[0.16em] uppercase">event</span>
+              <span>ProofVerified ✓</span>
+            </div>
+          </div>
+        </JamCard>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────────────────────── Architecture -->
+  <section id="architecture" class="border-b border-line">
+    <div class="max-w-[1320px] mx-auto px-8 py-24">
+      <SectionHeader
+        kicker="03 · system architecture"
+        title="Four layers, one root."></SectionHeader>
+
+      <div class="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- left: 4-layer diagram -->
+        <div class="lg:col-span-7 border border-line bg-panel p-6">
+          <div class="space-y-3">
+            <Layer idx="01" role="Orchestrator" lang="Rust · tokio · rayon"
+                   body="Receives a large dataset, splits it into independent chunks, schedules parallel Noir provers.">
+              <Tag>tokio</Tag><Tag>rayon</Tag><Tag>nargo</Tag>
+            </Layer>
+            <Connector></Connector>
+            <Layer idx="02" role="Prover Nodes" lang="Noir + Barretenberg" parallel
+                   body="Each node consumes a chunk of data and emits proof_i. Eight workers run concurrently on simulated JAM cores.">
+              <Tag>noir</Tag><Tag>plonk/honk</Tag><Tag>8× parallel</Tag>
+            </Layer>
+            <Connector></Connector>
+            <Layer idx="03" role="Aggregator" lang="Pedersen · binary tree"
+                   body="Hashes chunk roots pairwise up a binary Merkle tree until one final root remains. Single sr25519 signature covers the whole batch.">
+              <Tag>merkle-fold</Tag><Tag>pedersen</Tag><Tag>sr25519</Tag>
+            </Layer>
+            <Connector></Connector>
+            <Layer idx="04" role="Verifier" lang="Ink! · Portaldot" final
+                   body="Wasm contract on Portaldot validates final_proof, emits ProofVerified event, settles POT-based gas.">
+              <Tag>ink!</Tag><Tag>wasm</Tag><Tag>POT gas</Tag>
+            </Layer>
+          </div>
+        </div>
+
+        <!-- right: data shape + flow -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+          <div class="border border-line bg-panel">
+            <div class="px-5 py-3 border-b border-line flex items-baseline gap-3">
+              <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">data shape</span>
+              <span class="text-[12px] text-ink">type signatures</span>
+            </div>
+            <div class="p-5 text-[12px] leading-[1.9] text-ink">
+              <div><span class="text-mute">fn </span><span class="text-accent">refine</span><span class="text-mute">(data: </span>Vec&lt;Item&gt;<span class="text-mute">) -&gt; </span>Vec&lt;Chunk&gt;</div>
+              <div><span class="text-mute">fn </span><span class="text-accent">prove</span><span class="text-mute">(c: </span>Chunk<span class="text-mute">) -&gt; </span>(Proof, Root)</div>
+              <div><span class="text-mute">fn </span><span class="text-accent">accumulate</span><span class="text-mute">(rs: </span>Vec&lt;Root&gt;<span class="text-mute">) -&gt; </span>Root</div>
+              <div><span class="text-mute">fn </span><span class="text-accent">on_transfer</span><span class="text-mute">(r: </span>Root<span class="text-mute">, sig: </span>Sr25519Sig<span class="text-mute">)</span></div>
+              <div class="text-mute2 mt-2">  -&gt; Result&lt;Event::ProofVerified&gt;</div>
+            </div>
+          </div>
+
+          <div class="border border-line bg-panel">
+            <div class="px-5 py-3 border-b border-line flex items-baseline gap-3">
+              <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">measured</span>
+              <span class="text-[12px] text-ink">last run · #0008</span>
+            </div>
+            <div class="p-5 grid grid-cols-2 gap-y-3 gap-x-6 text-[12px]">
+              <Field k="sequential" v="—" bench="sequential"></Field>
+              <Field k="parallel"   v="—" accent bench="parallel"></Field>
+              <Field k="speedup"    v="—" accent bench="speedup"></Field>
+              <Field k="workers"    v="—" bench="workers"></Field>
+              <Field k="items"      v="—" bench="items"></Field>
+              <Field k="chunks"     v="—" bench="chunks"></Field>
+              <div class="col-span-2 pt-3 border-t border-line/60">
+                <div class="text-[10px] tracking-[0.16em] uppercase text-mute2 mb-1">aggregated root</div>
+                <div class="text-[11px] text-accent break-all" data-bench="root">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────────────────────── Run it -->
+  <section id="run" class="border-b border-line">
+    <div class="max-w-[1320px] mx-auto px-8 py-24">
+      <SectionHeader
+        kicker="04 · run it"
+        title="One command, the whole pipeline."></SectionHeader>
+
+      <div class="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <div class="border border-line bg-panel">
+          <div class="px-4 py-2.5 border-b border-line bg-panel2 flex items-center gap-2 text-[10px] text-mute2">
+            <span class="w-2 h-2 border border-line2"></span>
+            <span class="w-2 h-2 border border-line2"></span>
+            <span class="w-2 h-2 border border-line2"></span>
+            <span class="ml-3">~/aggregato</span>
+          </div>
+          <div class="p-6 font-mono text-[13px] leading-[1.9]">
+            <div><span class="text-mute2">$ </span><span class="text-ink">./demo.sh 8</span></div>
+            <div class="mt-3 text-mute text-[12px]"><span class="text-accentDk">[1/5]</span> boots substrate-contracts-node</div>
+            <div class="text-mute text-[12px]"><span class="text-accentDk">[2/5]</span> deploys ink! verifier</div>
+            <div class="text-mute text-[12px]"><span class="text-accentDk">[3/5]</span> launches react dashboard</div>
+            <div class="text-mute text-[12px]"><span class="text-accentDk">[4/5]</span> proves 8 chunks in parallel</div>
+            <div class="text-mute text-[12px]"><span class="text-accentDk">[5/5]</span> submits aggregated root</div>
+            <div class="mt-3 text-accent text-[12px]">✓ ProofVerified on-chain</div>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-[15px] text-mute leading-relaxed">
+            One script boots a local Substrate node, deploys the ink! contract,
+            launches the dashboard, and starts the orchestrator with eight
+            parallel proving workers.
+          </p>
+          <p class="mt-4 text-[14px] text-mute2 leading-relaxed">
+            Aggregato runs against a local Portaldot-compatible
+            development environment. The dashboard names the active endpoint so
+            it's always clear where the demo is running.
+          </p>
+          <a href="/run.html"
+             class="mt-8 inline-block text-[12px] tracking-[0.16em] uppercase px-5 py-3 border border-accent bg-accent text-bg hover:bg-accentDk hover:border-accentDk transition-colors">
+            ▶ Open Run dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ──────────────────────────────────────────────────────────── Footer -->
+  <footer class="max-w-[1320px] mx-auto px-8 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div class="flex items-center gap-3 text-mute">
+      <img src="/logo.svg" width="18" height="18" alt="Aggregato logo" />
+      <span class="text-[11px]">aggregato · parallel-zk-aggregator</span>
+    </div>
+    <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">
+      built for portaldot · 2026
+    </div>
+  </footer>
+
+  <!-- ──────────────────────────────────────────────────────────── Components (vanilla, no React) -->
+  <script>
+    // No React needed for this static landing — but we hydrate a few <ComponentName> tags
+    // with simple template expansion so the markup stays readable above.
+    const T = {
+      Line: ({ ts, tag, body, hex, ok }) => `
+        <div class="flex gap-3"><span class="text-mute2">${ts}</span>
+        <span class="flex-1"><span class="text-accentDk">[${tag}]</span>
+        ${hex ? `<span class="text-ink"> root </span><span class="text-accent">${hex}</span>` :
+          `<span class="${ok ? 'text-accent' : 'text-ink'}"> ${body}${ok ? ' ✓' : ''}</span>`}
+        </span></div>`,
+      Stat: ({ k, v, accent }) => `
+        <div class="bg-panel p-5">
+          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">${k}</div>
+          <div class="mt-2 text-[24px] ${accent ? 'text-accent' : 'text-ink'} tabular-nums">${v}</div>
+        </div>`,
+      SectionHeader: ({ kicker, title }) => `
+        <div>
+          <div class="text-[10px] tracking-[0.22em] uppercase text-accent mb-4">${kicker}</div>
+          <h2 class="text-[40px] leading-[1.1] font-medium tracking-tight">${title}</h2>
+        </div>`,
+      JamCard: ({ idx, name, tagline, body }, inner) => `
+        <div class="bg-panel p-7 flex flex-col">
+          <div class="flex items-baseline justify-between">
+            <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">${idx}</span>
+            <span class="text-[10px] tracking-[0.18em] uppercase text-accent">jam · ${name}</span>
+          </div>
+          <h3 class="mt-6 text-[24px] font-medium tracking-tight">${name}</h3>
+          <p class="mt-2 text-[13px] text-accent">${tagline}</p>
+          <p class="mt-4 text-[13px] text-mute leading-relaxed">${body}</p>
+          <div>${inner || ''}</div>
+        </div>`,
+      ChunkPill: ({ i, pct }) => `
+        <div class="border border-line bg-panel2 px-2 py-1.5">
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="text-mute2">w${i}</span>
+            <span class="${pct == 100 ? 'text-accent' : (pct > 0 ? 'text-ink' : 'text-mute2')}">${pct == 100 ? '✓' : (pct > 0 ? pct+'%' : '—')}</span>
+          </div>
+          <div class="mt-1.5 h-[3px] bg-line"><div class="h-full bg-accent" style="width:${pct}%"></div></div>
+        </div>`,
+      Hop: ({ label, bench }) => `
+        <div class="flex items-center gap-2 text-mute"><span class="text-mute2">→</span><span class="break-all"${bench ? ` data-bench="${bench}"` : ''}>${label}</span></div>`,
+      Layer: ({ idx, role, lang, body, parallel, final }, inner) => `
+        <div class="border ${final ? 'border-accent' : 'border-line2'} bg-panel2 p-5">
+          <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline gap-3">
+              <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">${idx}</span>
+              <span class="text-[15px] font-medium ${final ? 'text-accent' : 'text-ink'}">${role}</span>
+              ${parallel ? '<span class="text-[10px] tracking-[0.16em] uppercase text-accent border border-accent px-1.5">8× parallel</span>' : ''}
+            </div>
+            <span class="text-[11px] text-mute">${lang}</span>
+          </div>
+          <p class="mt-2 text-[12px] text-mute leading-relaxed">${body}</p>
+          <div class="mt-3 flex flex-wrap gap-1.5">${inner || ''}</div>
+        </div>`,
+      Tag: (_, inner) => `<span class="text-[10px] tracking-[0.14em] uppercase text-mute2 border border-line2 px-2 py-0.5">${inner}</span>`,
+      Connector: () => `
+        <div class="flex justify-center"><div class="relative w-[1px] h-6 bg-line overflow-hidden"><div class="flowline absolute inset-0"></div></div></div>`,
+      Field: ({ k, v, accent, bench }) => `
+        <div class="flex items-baseline justify-between gap-3 border-b border-line/60 pb-2">
+          <span class="text-mute2 tracking-[0.12em] uppercase text-[10px]">${k}</span>
+          <span class="${accent ? 'text-accent' : 'text-ink'} tabular-nums"${bench ? ` data-bench="${bench}"` : ''}>${v}</span>
+        </div>`,
+      StackCell: ({ k, v, sub }) => `
+        <div class="bg-panel p-6">
+          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">${k}</div>
+          <div class="mt-3 text-[20px] text-ink">${v}</div>
+          <div class="mt-1 text-[11px] text-mute">${sub}</div>
+        </div>`,
+      Phase: ({ n, label, title, body, state }) => {
+        const ring = state === 'done' ? 'bg-accent' : state === 'active' ? 'border border-accent bg-bg' : 'border border-line2 bg-bg';
+        const tag  = state === 'done' ? 'shipped' : state === 'active' ? 'in progress' : 'next';
+        const tagC = state === 'done' ? 'text-accent' : state === 'active' ? 'text-warn' : 'text-mute2';
+        return `<div class="bg-panel p-6 flex flex-col">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">${n} · ${label}</span>
+            <span class="w-2.5 h-2.5 ${ring}"></span>
+          </div>
+          <h4 class="mt-5 text-[17px] font-medium tracking-tight">${title}</h4>
+          <p class="mt-2 text-[12px] text-mute leading-relaxed flex-1">${body}</p>
+          <div class="mt-5 text-[10px] tracking-[0.16em] uppercase ${tagC}">${tag}</div>
+        </div>`;
+      },
+    };
+
+    function hydrate(root) {
+      const all = root.querySelectorAll('*');
+      // walk a snapshot so replaceWith doesn't break iteration
+      [...all].forEach(el => {
+        const tag = el.tagName;
+        // tag names get uppercased; map back
+        const name = Object.keys(T).find(k => k.toUpperCase() === tag);
+        if (!name) return;
+        const attrs = {};
+        for (const a of el.attributes) {
+          // boolean attribute → true
+          attrs[a.name] = a.value === '' ? true : a.value;
+        }
+        const inner = el.innerHTML;
+        const html = T[name](attrs, inner);
+        const tmp = document.createElement('template');
+        tmp.innerHTML = html.trim();
+        const node = tmp.content.firstElementChild;
+        // recursively hydrate children of the produced node
+        hydrate(node);
+        el.replaceWith(node);
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      hydrate(document.body);
+      // Populate latest-run figures from /api/benchmark and /api/portaldot-config
+      // (served by vite middleware). Falls back silently if files are absent.
+      const shortAddr = (a, n = 6) => (a && a.length > 2 * n + 2) ? `${a.slice(0, n)}…${a.slice(-n)}` : (a || '—');
+      Promise.all([
+        fetch('/api/benchmark').then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/portaldot-config').then(r => r.ok ? r.json() : null).catch(() => null),
+      ]).then(([d, p]) => {
+        const fmt = {};
+        if (d && typeof d === 'object') {
+          if (d.sequential_s != null) fmt.sequential = d.sequential_s.toFixed(2) + 's';
+          if (d.parallel_s   != null) fmt.parallel   = d.parallel_s.toFixed(2)   + 's';
+          if (d.speedup      != null) fmt.speedup    = d.speedup.toFixed(2)      + '×';
+          if (d.num_chunks   != null) fmt.workers    = String(d.num_chunks);
+          if (d.total_items  != null) fmt.items      = String(d.total_items);
+          if (d.num_chunks != null && d.chunk_size != null) fmt.chunks = d.num_chunks + ' × ' + d.chunk_size;
+          if (d.aggregated_root) fmt.root = d.aggregated_root;
+        }
+        const contract = (d && d.on_chain && d.on_chain.contract) || (p && p.contract);
+        if (contract) fmt.contractShort = 'contract  ' + shortAddr(contract);
+        if (p && p.ws) fmt.ws = p.ws;
+        document.querySelectorAll('[data-bench]').forEach(el => {
+          const k = el.getAttribute('data-bench');
+          if (fmt[k]) el.textContent = fmt[k];
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>
