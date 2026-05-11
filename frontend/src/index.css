@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { background: #121218; }
+body {
+  color: #E6E6EC;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background-color: #121218;
+  background-image: url('/run_background.png');
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 18, 24, 0.88);
+  pointer-events: none;
+  z-index: 0;
+}
+#root { position: relative; z-index: 1; }
+*, *::before, *::after { box-shadow: none !important; }
+::selection { background: #9CB4D4; color: #121218; }
+
+.scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar::-webkit-scrollbar-thumb { background: #2A2A36; }
+.scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.caret { animation: blink 1s steps(1) infinite; }
+
+@keyframes flow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.flowline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #9CB4D4, transparent);
+  opacity: 0.7;
+  animation: flow 2.4s linear infinite;
+}
