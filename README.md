@@ -88,6 +88,83 @@ aggregato/
 
 ---
 
+## Manual Setup
+
+### Prerequisites
+
+- Rust (stable + `nightly-2024-12-01` toolchain)
+- Noir: `curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash && noirup`
+- Barretenberg: `bbup -v 0.82.1` (or compatible)
+- `cargo-contract 5.0.3`: `cargo install cargo-contract --version 5.0.3`
+- `substrate-contracts-node` v0.41.0:
+  ```bash
+  curl -L https://github.com/paritytech/substrate-contracts-node/releases/download/v0.41.0/substrate-contracts-node-linux.tar.gz | tar -xz -C /tmp/
+  cp /tmp/artifacts/substrate-contracts-node-linux/substrate-contracts-node ~/.cargo/bin/
+  ```
+
+### 1. Run the orchestrator
+
+```bash
+export PATH="$HOME/.nargo/bin:$PATH"
+cd orchestrator
+cargo run -- 2        # or 4 or 8
+```
+
+The orchestrator prints the prover pubkey on completion:
+```
+[prover] pubkey (use when deploying contract): 0x189dac...
+```
+
+### 2. Start local node
+
+```bash
+substrate-contracts-node --dev --tmp
+```
+
+### 3. Deploy the ink! contract
+
+```bash
+cargo contract instantiate \
+  --url ws://127.0.0.1:9944 \
+  --constructor new \
+  --args 0x<PROVER_PUBKEY> \
+  --suri "//Alice" \
+  --execute \
+  --skip-confirm \
+  contracts/aggregato_verifier/target/ink/aggregato_verifier.contract
+```
+
+### 4. Submit proof on-chain
+
+```bash
+export PORTALDOT_WS=ws://127.0.0.1:9944
+export CONTRACT_ADDRESS=<deployed_address>
+cd orchestrator && cargo run -- 2
+```
+
+---
+
+## Smart Contract
+
+`AggregatoVerifier` (`contracts/aggregato_verifier/src/lib.rs`) stores verified aggregated roots with metadata, verifies Sr25519 signatures on-chain via the `sr25519_verify` host function, emits `ProofVerified` on each successful submission, and lets the owner rotate the prover pubkey.
+
+Key message:
+```
+submit_verified_root(aggregated_root_hex, num_chunks, total_items, signature_hex)
+```
+
+---
+
+## Security Note
+
+The default `PROVER_SK` is `[1u8; 32]`, a fixed well-known seed. Do not use it in production. Set a real secret key:
+
+```bash
+export PROVER_SK=0x<your_64_char_hex_secret_key>
+```
+
+---
+
 ## License
 
 MIT - see [`LICENSE`](LICENSE).
