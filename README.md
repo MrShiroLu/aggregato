@@ -165,6 +165,47 @@ export PROVER_SK=0x<your_64_char_hex_secret_key>
 
 ---
 
+## Portaldot Compatibility
+
+We tested Aggregato against the official Portaldot dev binary at [`portaldotVolunteer/Portaldot-node`](https://github.com/portaldotVolunteer/Portaldot-node) on 2026-05-13.
+
+The binary (`portaldot_dev`, ~100 MB) downloads and starts cleanly with `./portaldot_dev --dev --tmp`. It produces blocks, exposes `ws://127.0.0.1:9944`, and accepts `//Alice` as a funded dev account. The orchestrator can submit a transaction and have it included in a block.
+
+The contract instantiation, however, is rejected with `ExtrinsicFailed: Other`. Inspecting the runtime explains why:
+
+| Probe                        | Result                                                                 |
+|------------------------------|------------------------------------------------------------------------|
+| `system.version`             | `2.0.0-unknown` (Substrate 2.0, 2020-vintage runtime)                  |
+| Metadata version             | v13 - predates modern `frame-metadata`; `@polkadot/api` still parses it, but `cargo-contract` v4/v5 reject anything below v14 |
+| `contracts.schedule.version` | 4 - current pallet-contracts ships schedule v15+                       |
+| Host functions present       | `tombstoneDeposit`, `rentAllowance`, `setRentAllowance`, `restoreTo`, `rentParams` - the pre-rent-removal API (rent was removed from `pallet-contracts` in 2022) |
+
+`aggregato_verifier` is built with ink! 5.1.1, which emits Wasm against the modern (post-rent) pallet-contracts ABI. The host-function imports the contract needs (`seal_input`, `seal_caller`, `seal_set_storage` in their current shapes, `sr25519_verify`, etc.) do not exist in the bundled runtime. The two ABIs are roughly four years apart, so the published Portaldot dev binary cannot host ink! 4+ contracts at all. This is a runtime issue, not a pipeline one.
+
+What we ship runs end-to-end against `substrate-contracts-node`, which is the canonical reference runtime for ink! and is API-compatible with a modern Portaldot runtime. Switching to a remote endpoint is a one-line change:
+
+```bash
+export PORTALDOT_WS=wss://<portaldot_rpc_url>
+export CONTRACT_ADDRESS=<deployed_address>
+./demo.sh 8
+```
+
+We also ship a direct deployer that bypasses `cargo-contract` (it uses `@polkadot/api`, which can talk to legacy metadata if a future runtime needs it):
+
+```bash
+node frontend/scripts/deploy_contract.mjs \
+  --ws wss://<portaldot_rpc_url> \
+  --suri "//Alice" \
+  --constructor new \
+  --arg 0x<prover_pubkey>
+```
+
+The script resolves the contract bundle relative to its own location, so it works from any directory. Pass `--bundle <path>` to override.
+
+When the active endpoint is local, the dashboard shows a `running on local DEV node` banner so the demo never claims to be on Portaldot itself.
+
+---
+
 ## License
 
 MIT - see [`LICENSE`](LICENSE).
