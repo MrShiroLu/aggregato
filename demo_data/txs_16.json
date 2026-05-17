@@ -1,0 +1,151 @@
+{
+  "kind": "rollup_tx_batch",
+  "name": "demo-16",
+  "description": "Synthetic L2 transaction batch for the Aggregato demo. Each item's `preimage` is FNV-1a(from|to|amount|nonce) and is the u64 fed into pedersen_hash by the inner circuit.",
+  "items": [
+    {
+      "from": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "from_name": "Alice",
+      "to": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "to_name": "Bob",
+      "amount": 100000,
+      "nonce": 0,
+      "preimage": "7899845109531159193"
+    },
+    {
+      "from": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "from_name": "Bob",
+      "to": "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+      "to_name": "Eve",
+      "amount": 1830117,
+      "nonce": 0,
+      "preimage": "6909339529138978025"
+    },
+    {
+      "from": "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
+      "from_name": "Charlie",
+      "to": "5EYCAe5cKPAoFh2HnQQvpKqRrZS4nWumnL1z3BFSCxsh6kjy",
+      "to_name": "Mallory",
+      "amount": 3560234,
+      "nonce": 0,
+      "preimage": "2857953152248469255"
+    },
+    {
+      "from": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+      "from_name": "Dave",
+      "to": "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
+      "to_name": "Charlie",
+      "amount": 5290351,
+      "nonce": 0,
+      "preimage": "5845171099078423327"
+    },
+    {
+      "from": "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+      "from_name": "Eve",
+      "to": "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
+      "to_name": "Ferdie",
+      "amount": 7020468,
+      "nonce": 0,
+      "preimage": "4403659994321906602"
+    },
+    {
+      "from": "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
+      "from_name": "Ferdie",
+      "to": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "to_name": "Alice",
+      "amount": 8750585,
+      "nonce": 0,
+      "preimage": "5006148819626467929"
+    },
+    {
+      "from": "5DfhGyQdFobKM8NsWvEeAKk5EQQgYe9AydgJ7rMB6E1EqRzV",
+      "from_name": "Ivy",
+      "to": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+      "to_name": "Dave",
+      "amount": 1480702,
+      "nonce": 0,
+      "preimage": "3234279256374498070"
+    },
+    {
+      "from": "5EYCAe5cKPAoFh2HnQQvpKqRrZS4nWumnL1z3BFSCxsh6kjy",
+      "from_name": "Mallory",
+      "to": "5DfhGyQdFobKM8NsWvEeAKk5EQQgYe9AydgJ7rMB6E1EqRzV",
+      "to_name": "Ivy",
+      "amount": 3210819,
+      "nonce": 0,
+      "preimage": "7043163023808749410"
+    },
+    {
+      "from": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "from_name": "Alice",
+      "to": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "to_name": "Bob",
+      "amount": 4940936,
+      "nonce": 1,
+      "preimage": "8339642700407708848"
+    },
+    {
+      "from": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "from_name": "Bob",
+      "to": "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+      "to_name": "Eve",
+      "amount": 6671053,
+      "nonce": 1,
+      "preimage": "7655337820170430827"
+    },
+    {
+      "from": "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
+      "from_name": "Charlie",
+      "to": "5EYCAe5cKPAoFh2HnQQvpKqRrZS4nWumnL1z3BFSCxsh6kjy",
+      "to_name": "Mallory",
+      "amount": 8401170,
+      "nonce": 1,
+      "preimage": "4550320301271981410"
+    },
+    {
+      "from": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+      "from_name": "Dave",
+      "to": "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
+      "to_name": "Charlie",
+      "amount": 1131287,
+      "nonce": 1,
+      "preimage": "2499680777006069264"
+    },
+    {
+      "from": "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+      "from_name": "Eve",
+      "to": "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
+      "to_name": "Ferdie",
+      "amount": 2861404,
+      "nonce": 1,
+      "preimage": "4830079635759487869"
+    },
+    {
+      "from": "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
+      "from_name": "Ferdie",
+      "to": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "to_name": "Alice",
+      "amount": 4591521,
+      "nonce": 1,
+      "preimage": "2946577645402550495"
+    },
+    {
+      "from": "5DfhGyQdFobKM8NsWvEeAKk5EQQgYe9AydgJ7rMB6E1EqRzV",
+      "from_name": "Ivy",
+      "to": "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+      "to_name": "Dave",
+      "amount": 6321638,
+      "nonce": 1,
+      "preimage": "8598940689189509578"
+    },
+    {
+      "from": "5EYCAe5cKPAoFh2HnQQvpKqRrZS4nWumnL1z3BFSCxsh6kjy",
+      "from_name": "Mallory",
+      "to": "5DfhGyQdFobKM8NsWvEeAKk5EQQgYe9AydgJ7rMB6E1EqRzV",
+      "to_name": "Ivy",
+      "amount": 8051755,
+      "nonce": 1,
+      "preimage": "3064499382737476026"
+    }
+  ]
+}
