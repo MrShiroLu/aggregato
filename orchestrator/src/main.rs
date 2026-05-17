@@ -1,9 +1,60 @@
 use anyhow::{Context, Result};
 use rayon::prelude::*;
 use schnorrkel::{ExpansionMode, Keypair, MiniSecretKey, signing_context};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
+
+#[derive(Deserialize, Serialize, Clone)]
+struct DatasetItem {
+    from: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    from_name: Option<String>,
+    to: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    to_name: Option<String>,
+    amount: u64,
+    nonce: u32,
+    /// u64 preimage as decimal string (JSON-safe); fed directly to pedersen_hash.
+    preimage: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Dataset {
+    kind: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+    items: Vec<DatasetItem>,
+}
+
+fn load_dataset(path: &Path) -> Result<Dataset> {
+    let s = std::fs::read_to_string(path)
+        .with_context(|| format!("read dataset {}", path.display()))?;
+    let ds: Dataset = serde_json::from_str(&s)
+        .with_context(|| format!("parse dataset {}", path.display()))?;
+    Ok(ds)
+}
+
+/// Parses `[num_chunks] [--dataset path.json]` out of argv in any order.
+/// `num_chunks` defaults to 2; dataset path is optional.
+fn parse_cli() -> Result<(usize, Option<PathBuf>)> {
+    let mut num_chunks: Option<usize> = None;
+    let mut dataset: Option<PathBuf> = None;
+    let mut it = std::env::args().skip(1);
+    while let Some(a) = it.next() {
+        if a == "--dataset" {
+            dataset = it.next().map(PathBuf::from);
+            anyhow::ensure!(dataset.is_some(), "--dataset requires a path");
+        } else if let Ok(n) = a.parse::<usize>() {
+            num_chunks = Some(n);
+        } else {
+            anyhow::bail!("unknown arg: {}", a);
+        }
+    }
+    Ok((num_chunks.unwrap_or(2), dataset))
+}
 
 const CHUNK_SIZE: usize = 8;
 const BB_BIN: &str = "bb";
@@ -516,17 +567,33 @@ async fn main() -> Result<()> {
     let inner_dir_str = circuits_dir().join("inner").to_str().unwrap().to_string();
     let agg_dir = circuits_dir().join("aggregator");
 
-    let num_chunks: usize = std::env::args()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(2);
+    let (num_chunks, dataset_path) = parse_cli()?;
     anyhow::ensure!(
         num_chunks.is_power_of_two() && num_chunks >= 2,
         "num_chunks must be a power of 2 (2, 4, 8, ...), got {}", num_chunks
     );
 
     let total_items = num_chunks * CHUNK_SIZE;
-    let all_preimages: Vec<u64> = (1..=(total_items as u64)).collect();
+
+    // Either load a real-looking dataset from disk, or fall back to the
+    // deterministic 1..=N sequence for plain benchmark runs.
+    let (all_preimages, dataset_meta): (Vec<u64>, Option<Dataset>) = match dataset_path {
+        Some(path) => {
+            let ds = load_dataset(&path)?;
+            anyhow::ensure!(
+                ds.items.len() == total_items,
+                "dataset {} has {} items but num_chunks={} expects {}",
+                path.display(), ds.items.len(), num_chunks, total_items,
+            );
+            let preimages = ds.items.iter()
+                .map(|it| it.preimage.parse::<u64>()
+                    .with_context(|| format!("preimage `{}` is not a u64", it.preimage)))
+                .collect::<Result<Vec<_>>>()?;
+            println!("[dataset] loaded {} ({} items) from {}", ds.name, ds.items.len(), path.display());
+            (preimages, Some(ds))
+        }
+        None => ((1..=(total_items as u64)).collect(), None),
+    };
     let chunks: Vec<Vec<u64>> = all_preimages.chunks(CHUNK_SIZE).map(|c| c.to_vec()).collect();
 
     println!("=== Aggregato Orchestrator ===");
@@ -638,11 +705,16 @@ async fn main() -> Result<()> {
         r#","on_chain":{"success":false,"contract":""}"#.to_string()
     };
 
+    let dataset_json = match &dataset_meta {
+        Some(ds) => format!(r#","dataset":{}"#, serde_json::to_string(ds).unwrap_or_else(|_| "null".into())),
+        None => String::new(),
+    };
+
     let benchmark_json = format!(
-        r#"{{"num_chunks":{},"chunk_size":{},"total_items":{},"sequential_s":{:.3},"parallel_s":{:.3},"speedup":{:.3},"aggregation_s":{:.3},"total_s":{:.3},"aggregated_root":"{}","portaldot_block_hash":"{}","pubkey":"{}","sig":"{}"{}}}"#,
+        r#"{{"num_chunks":{},"chunk_size":{},"total_items":{},"sequential_s":{:.3},"parallel_s":{:.3},"speedup":{:.3},"aggregation_s":{:.3},"total_s":{:.3},"aggregated_root":"{}","portaldot_block_hash":"{}","pubkey":"{}","sig":"{}"{}{}}}"#,
         num_chunks, CHUNK_SIZE, total_items,
         seq_time, par_time, speedup, agg_time, total, final_root,
-        block_hash_hex, pubkey_hex, signature_hex, on_chain_json
+        block_hash_hex, pubkey_hex, signature_hex, on_chain_json, dataset_json
     );
     let repo_root = circuits_dir().parent().unwrap().to_path_buf();
     std::fs::write(repo_root.join("benchmark_latest.json"), &benchmark_json).ok();
