@@ -14,14 +14,16 @@
 # something it isn't.
 #
 # Usage:
-#   ./demo.sh            # 2 chunks (default)
+#   ./demo.sh            # 2 chunks (default), plain 1..N preimages
 #   ./demo.sh 4          # 4 chunks
 #   ./demo.sh 8          # 8 chunks
+#   ./demo.sh 4 demo_data/txs_32.json   # use a real-looking rollup tx batch
 #   PORTALDOT_WS=wss://... CONTRACT_ADDRESS=5xxx ./demo.sh   # remote testnet
 
 set -euo pipefail
 
 NUM_CHUNKS="${1:-2}"
+DATASET="${2:-}"
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
@@ -93,9 +95,20 @@ sleep 2
 echo -e "${G}[dashboard] http://localhost:3000  (run: http://localhost:3000/run.html)${R}"
 
 # ── 4. Run orchestrator ───────────────────────────────────────────────────────
-echo -e "${B}[orchestrator] Proving ${NUM_CHUNKS} chunks...${R}"
-cd "$REPO_DIR/orchestrator"
-cargo run -- "$NUM_CHUNKS"
+if [ -n "$DATASET" ]; then
+  # Resolve relative paths against the repo root so the orchestrator can find it.
+  case "$DATASET" in
+    /*) DATASET_ABS="$DATASET" ;;
+    *)  DATASET_ABS="$REPO_DIR/$DATASET" ;;
+  esac
+  echo -e "${B}[orchestrator] Proving ${NUM_CHUNKS} chunks with dataset ${DATASET}...${R}"
+  cd "$REPO_DIR/orchestrator"
+  cargo run -- "$NUM_CHUNKS" --dataset "$DATASET_ABS"
+else
+  echo -e "${B}[orchestrator] Proving ${NUM_CHUNKS} chunks (default 1..N preimages)...${R}"
+  cd "$REPO_DIR/orchestrator"
+  cargo run -- "$NUM_CHUNKS"
+fi
 
 echo ""
 echo -e "${G}=== Demo complete ===${R}"

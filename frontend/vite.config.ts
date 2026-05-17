@@ -144,19 +144,34 @@ export default defineConfig({
           req.on('end', () => {
             let num_chunks = 8
             let walletSubmit = false
+            let dataset: string | undefined
             try {
               const parsed = JSON.parse(body)
               num_chunks = parsed.num_chunks ?? 8
               walletSubmit = Boolean(parsed.wallet_submit)
+              if (typeof parsed.dataset === 'string' && parsed.dataset.length > 0) {
+                dataset = parsed.dataset
+              }
             } catch { /* invalid JSON */ }
 
+            // Auto-pick the matching demo dataset when the client doesn't
+            // specify one, so the dashboard shows real-looking tx metadata
+            // instead of plain 1..N preimages.
+            if (!dataset) {
+              const total = num_chunks * 8
+              const candidate = resolve(__dirname, `../demo_data/txs_${total}.json`)
+              if (fs.existsSync(candidate)) dataset = candidate
+            }
+
             resetRunState()
-            pushLine(`[orchestrator] starting run #${runId} (num_chunks=${num_chunks}${walletSubmit ? ', wallet_submit=true' : ''})`)
+            pushLine(`[orchestrator] starting run #${runId} (num_chunks=${num_chunks}${walletSubmit ? ', wallet_submit=true' : ''}${dataset ? `, dataset=${dataset.split('/').pop()}` : ''})`)
 
             const childEnv: NodeJS.ProcessEnv = { ...process.env }
             if (walletSubmit) childEnv.SKIP_ONCHAIN = '1'
 
-            const proc = spawn('cargo', ['run', '--', String(num_chunks)], {
+            const args = ['run', '--', String(num_chunks)]
+            if (dataset) args.push('--dataset', dataset)
+            const proc = spawn('cargo', args, {
               cwd: resolve(__dirname, '../orchestrator'),
               env: childEnv,
               stdio: ['ignore', 'pipe', 'pipe'],

@@ -12,6 +12,23 @@ import type { InjectedAccountWithMeta } from '@polkadot/extension-inject/types'
 type Phase    = 'idle' | 'refine' | 'accumulate' | 'ontransfer' | 'done'
 type DotState = 'idle' | 'active' | 'done' | 'err'
 
+interface DatasetItem {
+  from:       string
+  from_name?: string
+  to:         string
+  to_name?:   string
+  amount:     number
+  nonce:      number
+  preimage:   string
+}
+
+interface DatasetMeta {
+  kind:         string
+  name:         string
+  description?: string
+  items:        DatasetItem[]
+}
+
 interface BenchmarkData {
   num_chunks:            number
   chunk_size:            number
@@ -25,6 +42,7 @@ interface BenchmarkData {
   portaldot_block_hash?: string
   pubkey?:               string
   sig?:                  string
+  dataset?:              DatasetMeta
   on_chain: {
     success:  boolean
     contract: string
@@ -324,6 +342,75 @@ function SubmitDiagram({ active, done, contract, rpc }: { active: boolean; done:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Dataset — shows the actual tx batch being proved, grouped by chunk
+// ─────────────────────────────────────────────────────────────────────────────
+
+function formatAmount(microDot: number): string {
+  // amounts are in micro-DOT (10^-6); render with up to 2 decimal places
+  const dot = microDot / 1_000_000
+  if (dot >= 100) return dot.toFixed(0)
+  if (dot >= 10)  return dot.toFixed(1)
+  return dot.toFixed(2)
+}
+
+function partyLabel(name: string | undefined, addr: string): string {
+  if (name && name.length > 0) return name
+  return addr.length > 10 ? `${addr.slice(0, 4)}…${addr.slice(-3)}` : addr
+}
+
+function Dataset({ dataset, chunkSize }: { dataset: DatasetMeta; chunkSize: number }) {
+  const chunks: DatasetItem[][] = []
+  for (let i = 0; i < dataset.items.length; i += chunkSize) {
+    chunks.push(dataset.items.slice(i, i + chunkSize))
+  }
+
+  return (
+    <Panel
+      kicker="02"
+      title="Dataset"
+      right={
+        <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-mute2">
+          {dataset.kind.replace(/_/g, ' ')} · {dataset.items.length} items
+        </span>
+      }
+    >
+      {dataset.description && (
+        <div className="px-5 pt-4 font-mono text-[10px] text-mute leading-relaxed">
+          {dataset.description}
+        </div>
+      )}
+      <div className="p-5 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+        {chunks.map((items, ci) => (
+          <div key={ci} className="border border-line bg-panel2">
+            <div className="px-3 py-2 border-b border-line flex items-center justify-between">
+              <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-mute2">chunk {ci}</span>
+              <span className="font-mono text-[10px] text-mute">{items.length} txs</span>
+            </div>
+            <div className="px-3 py-2 font-mono text-[10.5px] leading-[1.55]">
+              {items.map((tx, ti) => (
+                <div key={ti} className="flex items-center justify-between gap-3 py-[3px] border-b border-line/40 last:border-b-0">
+                  <div className="flex items-center gap-1.5 text-ink min-w-0">
+                    <span className="text-mute2 tabular-nums w-4 text-right">{ci * chunkSize + ti}</span>
+                    <span className="truncate">{partyLabel(tx.from_name, tx.from)}</span>
+                    <span className="text-mute2">→</span>
+                    <span className="truncate">{partyLabel(tx.to_name, tx.to)}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 shrink-0">
+                    <span className="text-accent tabular-nums">{formatAmount(tx.amount)}</span>
+                    <span className="text-mute2 text-[9.5px]">DOT</span>
+                    <span className="text-mute2 text-[9.5px]">n{tx.nonce}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Metrics
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -384,7 +471,7 @@ function Metrics({ phase, benchmark }: { phase: Phase; benchmark: BenchmarkData 
 
   return (
     <Panel
-      kicker="02"
+      kicker="03"
       title="Benchmark metrics"
       right={
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-mute2">
@@ -441,7 +528,7 @@ function Terminal({ lines, running }: { lines: { ts: number; text: string }[]; r
 
   return (
     <Panel
-      kicker="03"
+      kicker="04"
       title="Orchestrator console"
       right={
         <div className="flex items-center gap-3 font-mono text-[10px] text-mute2">
@@ -532,7 +619,7 @@ function Verification({ phase, benchmark, wallet, portaldot, walletSubmit }: {
 
   return (
     <Panel
-      kicker="04"
+      kicker="05"
       title="On-chain verification state"
       right={<span className="font-mono text-[10px] tracking-[0.14em] uppercase text-mute2">portaldot · ink!</span>}
     >
@@ -913,6 +1000,7 @@ export default function App() {
         <NetworkBanner portaldot={portaldot} />
         <StatusStrip phase={phase} chunkProgress={chunkProgress} />
         <Pipeline phase={phase} chunkProgress={chunkProgress} running={running} contract={benchmark?.on_chain?.contract || portaldot?.contract} rpc={portaldot?.ws} />
+        {benchmark?.dataset && <Dataset dataset={benchmark.dataset} chunkSize={benchmark.chunk_size} />}
         <Metrics phase={phase} benchmark={benchmark} />
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
