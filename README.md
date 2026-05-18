@@ -155,6 +155,14 @@ submit_verified_root(aggregated_root_hex, num_chunks, total_items, signature_hex
 
 ---
 
+## Gas (POT)
+
+Every contract call in the pipeline — `instantiate` at deploy time and `submit_verified_root` on each aggregated proof — is a regular `pallet-contracts` extrinsic, so it is paid for in the chain's native token via `pallet-balances`. On Portaldot that token is **POT**: deploy fees, storage deposits, and per-call gas all come out of the signer's POT balance. The orchestrator signs every submission with the configured prover account, so that account is the one that needs a POT balance on the target endpoint.
+
+Local `substrate-contracts-node` runs the same `pallet-contracts` / `pallet-balances` ABI under a placeholder unit token, which is why no code changes are required to switch endpoints — pointing `PORTALDOT_WS` at a Portaldot RPC makes the same extrinsics consume real POT.
+
+---
+
 ## Security Note
 
 The default `PROVER_SK` is `[1u8; 32]`, a fixed well-known seed. Do not use it in production. Set a real secret key:
