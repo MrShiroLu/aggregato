@@ -69,30 +69,15 @@
   <section id="overview" class="relative border-b border-line">
     <div class="relative max-w-[1320px] mx-auto px-8 py-56">
       <div class="max-w-3xl">
-        <div class="text-[10px] tracking-[0.22em] uppercase text-accent mb-6">01 · overview</div>
         <h1 class="text-[56px] leading-[1.05] font-medium tracking-tight text-ink">
           Parallel ZK proof aggregation,<br/>
           <span class="text-accent">accumulated to one root.</span>
         </h1>
-        <p class="mt-6 text-[16px] leading-relaxed text-mute max-w-2xl">
-          One big ZK proof is slow. Many small proofs, generated in parallel and folded
-          into a single Merkle root, is fast — and the on-chain verifier still only
-          checks one signature.
-        </p>
-        <p class="mt-3 text-[13px] leading-relaxed text-mute2 max-w-2xl">
-          Aggregato is a JAM-inspired orchestrator: <span class="text-accent">Refine</span> (prove
-          N chunks in parallel with Noir + Barretenberg) → <span class="text-accent">Accumulate</span>
-          (binary Merkle fold) → <span class="text-accent">OnTransfer</span> (sr25519-signed
-          extrinsic to an ink! verifier on Portaldot).
-        </p>
         <div class="mt-10 flex flex-wrap items-center gap-4">
           <a href="/run.html"
              class="text-[12px] tracking-[0.16em] uppercase px-5 py-3 border border-accent bg-accent text-bg hover:bg-accentDk hover:border-accentDk transition-colors">
             ▶ Open Run dashboard
           </a>
-          <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">
-            parallel zk proof aggregation · jam-inspired
-          </span>
         </div>
       </div>
     </div>
@@ -103,12 +88,12 @@
     <div class="max-w-[1320px] mx-auto px-8 py-14">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
         <div class="bg-panel p-7">
-          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">sequential baseline</div>
+          <div class="text-[10px] tracking-[0.18em] uppercase text-ink">sequential baseline</div>
           <div class="mt-3 font-mono text-[40px] tabular-nums leading-none text-ink" data-bench="sequential">—</div>
           <div class="mt-2 text-[12px] text-mute">single-threaded prove + verify</div>
         </div>
         <div class="bg-panel p-7">
-          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">parallel (<span data-bench="workers">—</span> workers)</div>
+          <div class="text-[10px] tracking-[0.18em] uppercase text-ink">parallel (<span data-bench="workers">—</span> workers)</div>
           <div class="mt-3 font-mono text-[40px] tabular-nums leading-none text-ink" data-bench="parallel">—</div>
           <div class="mt-2 text-[12px] text-mute">eight Barretenberg workers in parallel</div>
         </div>
@@ -125,7 +110,6 @@
   <section id="jam" class="border-b border-line">
     <div class="max-w-[1320px] mx-auto px-8 py-24">
       <SectionHeader
-        kicker="02 · technical philosophy"
         title="The JAM model, three primitives."></SectionHeader>
 
       <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
@@ -193,7 +177,6 @@
   <section id="architecture" class="border-b border-line">
     <div class="max-w-[1320px] mx-auto px-8 py-24">
       <SectionHeader
-        kicker="03 · system architecture"
         title="Four layers, one root."></SectionHeader>
 
       <div class="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -265,7 +248,6 @@
   <section id="run" class="border-b border-line">
     <div class="max-w-[1320px] mx-auto px-8 py-24">
       <SectionHeader
-        kicker="04 · run it"
         title="One command, the whole pipeline."></SectionHeader>
 
       <div class="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
@@ -334,9 +316,8 @@
           <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">${k}</div>
           <div class="mt-2 text-[24px] ${accent ? 'text-accent' : 'text-ink'} tabular-nums">${v}</div>
         </div>`,
-      SectionHeader: ({ kicker, title }) => `
+      SectionHeader: ({ title }) => `
         <div>
-          <div class="text-[10px] tracking-[0.22em] uppercase text-accent mb-4">${kicker}</div>
           <h2 class="text-[40px] leading-[1.1] font-medium tracking-tight">${title}</h2>
         </div>`,
       JamCard: ({ idx, name, tagline, body }, inner) => `
