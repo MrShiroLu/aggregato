@@ -34,7 +34,14 @@ mod aggregato_verifier {
         pub total_items: u32,
         pub submitted_at: u64,
         pub submitter: AccountId,
+        /// Service fee paid by the submitter in POT base units.
+        pub fee_paid: Balance,
     }
+
+    /// Service fee per aggregated chunk, in POT base units (12 decimals).
+    /// 10_000_000_000 = 0.01 POT. Each batch must pay FEE_PER_CHUNK × num_chunks
+    /// so cost scales with the work the aggregator did off-chain.
+    pub const FEE_PER_CHUNK: Balance = 10_000_000_000;
 
     #[ink(storage)]
     pub struct AggregatoVerifier {
@@ -44,6 +51,8 @@ mod aggregato_verifier {
         roots: Mapping<[u8; 32], VerifiedRoot>,
         root_index: Mapping<u32, [u8; 32]>,
         proof_count: u32,
+        /// Lifetime total of service fees collected (not yet withdrawn).
+        collected_fees: Balance,
     }
 
     #[ink(event)]
@@ -58,6 +67,14 @@ mod aggregato_verifier {
         proof_count: u32,
         #[ink(topic)]
         submitter: AccountId,
+        fee_paid: Balance,
+    }
+
+    #[ink(event)]
+    pub struct FeesWithdrawn {
+        #[ink(topic)]
+        to: AccountId,
+        amount: Balance,
     }
 
     #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -67,6 +84,8 @@ mod aggregato_verifier {
         AlreadyVerified,
         InvalidRootFormat,
         InvalidSignature,
+        InsufficientFee,
+        TransferFailed,
     }
 
     pub type Result<T> = core::result::Result<T, Error>;
@@ -85,6 +104,7 @@ mod aggregato_verifier {
                 roots: Mapping::default(),
                 root_index: Mapping::default(),
                 proof_count: 0,
+                collected_fees: 0,
             }
         }
 
@@ -102,7 +122,7 @@ mod aggregato_verifier {
         /// The contract verifies the signature on-chain via the `sr25519_verify`
         /// host function (Substrate-native, unavailable on EVM chains) before
         /// accepting the submission.
-        #[ink(message)]
+        #[ink(message, payable)]
         pub fn submit_verified_root(
             &mut self,
             aggregated_root_hex: String,
@@ -111,6 +131,9 @@ mod aggregato_verifier {
             total_items: u32,
             signature_hex: String,
         ) -> Result<()> {
+            // Validate the submission first (cheap, no state changes). The fee
+            // check comes last so a malformed/forged submission can return Err
+            // before we bookkeep the transferred value as collected revenue.
             let root_bytes = parse_hex_root(&aggregated_root_hex)
                 .ok_or(Error::InvalidRootFormat)?;
 
@@ -137,6 +160,15 @@ mod aggregato_verifier {
                 return Err(Error::AlreadyVerified);
             }
 
+            // POT-as-gas: caller pays FEE_PER_CHUNK × num_chunks in addition to
+            // the base extrinsic fee. The collected balance accrues to the
+            // aggregator operator (owner) and can be withdrawn with withdraw_fees.
+            let required_fee = FEE_PER_CHUNK.saturating_mul(num_chunks as Balance);
+            let paid = self.env().transferred_value();
+            if paid < required_fee {
+                return Err(Error::InsufficientFee);
+            }
+
             let caller = self.env().caller();
             let entry = VerifiedRoot {
                 aggregated_root: root_bytes,
@@ -145,11 +177,13 @@ mod aggregato_verifier {
                 total_items,
                 submitted_at: self.env().block_timestamp(),
                 submitter: caller,
+                fee_paid: paid,
             };
 
             self.roots.insert(root_bytes, &entry);
             self.root_index.insert(self.proof_count, &root_bytes);
             self.proof_count = self.proof_count.saturating_add(1);
+            self.collected_fees = self.collected_fees.saturating_add(paid);
 
             self.env().emit_event(ProofVerified {
                 aggregated_root: root_bytes,
@@ -158,9 +192,40 @@ mod aggregato_verifier {
                 total_items,
                 proof_count: self.proof_count,
                 submitter: caller,
+                fee_paid: paid,
             });
 
             Ok(())
+        }
+
+        /// Fee charged for a batch of the given chunk count, in POT base units.
+        #[ink(message)]
+        pub fn fee_for_chunks(&self, num_chunks: u32) -> Balance {
+            FEE_PER_CHUNK.saturating_mul(num_chunks as Balance)
+        }
+
+        /// Total service fees collected and not yet withdrawn.
+        #[ink(message)]
+        pub fn collected_fees(&self) -> Balance {
+            self.collected_fees
+        }
+
+        /// Withdraw accumulated service fees to the owner (owner-only).
+        #[ink(message)]
+        pub fn withdraw_fees(&mut self) -> Result<Balance> {
+            if self.env().caller() != self.owner {
+                return Err(Error::NotOwner);
+            }
+            let amount = self.collected_fees;
+            if amount == 0 {
+                return Ok(0);
+            }
+            self.collected_fees = 0;
+            self.env()
+                .transfer(self.owner, amount)
+                .map_err(|_| Error::TransferFailed)?;
+            self.env().emit_event(FeesWithdrawn { to: self.owner, amount });
+            Ok(amount)
         }
 
         /// Check whether a root (0x-prefixed hex) has been verified.
@@ -272,6 +337,14 @@ mod aggregato_verifier {
         const TEST_BLOCK_HASH: &str =
             "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
+        fn pay(value: Balance) {
+            ink::env::test::set_value_transferred::<ink::env::DefaultEnvironment>(value);
+        }
+
+        fn fee(num_chunks: u32) -> Balance {
+            FEE_PER_CHUNK.saturating_mul(num_chunks as Balance)
+        }
+
         fn sign_combined(kp: &Keypair, root: &[u8; 32], block_hash: &[u8; 32]) -> String {
             let ctx = signing_context(b"substrate");
             let mut msg = [0u8; 64];
@@ -295,17 +368,39 @@ mod aggregato_verifier {
             assert!(!contract.is_verified(root.clone()));
             assert_eq!(contract.proof_count(), 0);
 
+            pay(fee(2));
             contract.submit_verified_root(
                 root.clone(), TEST_BLOCK_HASH.to_string(), 2, 16, sig
             ).unwrap();
 
             assert!(contract.is_verified(root.clone()));
             assert_eq!(contract.proof_count(), 1);
+            assert_eq!(contract.collected_fees(), fee(2));
 
             let entry = contract.get_entry(root).unwrap();
             assert_eq!(entry.num_chunks, 2);
             assert_eq!(entry.total_items, 16);
             assert_eq!(entry.portaldot_block_hash, block_hash_bytes);
+            assert_eq!(entry.fee_paid, fee(2));
+        }
+
+        #[ink::test]
+        fn insufficient_fee_rejected() {
+            let kp = test_keypair();
+            let mut contract = AggregatoVerifier::new(kp.public.to_bytes());
+
+            let root = "0x1595ee7e09fb5804c2256d5332f202ccd5e0a575da018ca6cf69ea50ced55b55".to_string();
+            let root_bytes = parse_hex_root(&root).unwrap();
+            let block_hash_bytes = parse_hex_root(TEST_BLOCK_HASH).unwrap();
+            let sig = sign_combined(&kp, &root_bytes, &block_hash_bytes);
+
+            pay(fee(2) - 1);
+            assert_eq!(
+                contract.submit_verified_root(
+                    root, TEST_BLOCK_HASH.to_string(), 2, 16, sig
+                ),
+                Err(Error::InsufficientFee)
+            );
         }
 
         #[ink::test]
@@ -318,9 +413,11 @@ mod aggregato_verifier {
             let block_hash_bytes = parse_hex_root(TEST_BLOCK_HASH).unwrap();
             let sig = sign_combined(&kp, &root_bytes, &block_hash_bytes);
 
+            pay(fee(2));
             contract.submit_verified_root(
                 root.clone(), TEST_BLOCK_HASH.to_string(), 2, 16, sig.clone()
             ).unwrap();
+            pay(fee(2));
             assert_eq!(
                 contract.submit_verified_root(
                     root, TEST_BLOCK_HASH.to_string(), 2, 16, sig
@@ -333,6 +430,7 @@ mod aggregato_verifier {
         fn invalid_hex_rejected() {
             let mut contract = AggregatoVerifier::new([0u8; 32]);
             let fake_sig = format!("0x{}", "ab".repeat(64));
+            pay(fee(2));
             assert_eq!(
                 contract.submit_verified_root(
                     "not_hex".to_string(), TEST_BLOCK_HASH.to_string(), 2, 16, fake_sig
@@ -348,6 +446,7 @@ mod aggregato_verifier {
 
             let root = "0x1595ee7e09fb5804c2256d5332f202ccd5e0a575da018ca6cf69ea50ced55b55".to_string();
             let bad_sig = format!("0x{}", "00".repeat(64));
+            pay(fee(2));
             assert_eq!(
                 contract.submit_verified_root(
                     root, TEST_BLOCK_HASH.to_string(), 2, 16, bad_sig
