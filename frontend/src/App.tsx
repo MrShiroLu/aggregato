@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import {
   useWallet, usePortaldotConfig, submitVerifiedRoot, shortAddr,
+  feeForChunks, formatPot,
   type SubmitProgress, type WalletState, type PortaldotConfig,
 } from './wallet'
 import type { InjectedAccountWithMeta } from '@polkadot/extension-inject/types'
@@ -549,7 +550,7 @@ function Terminal({ lines, running }: { lines: { ts: number; text: string }[]; r
       </div>
       <div
         ref={scrollRef}
-        className="scrollbar font-mono text-[12px] leading-[1.65] p-4 max-h-[420px] min-h-[420px] overflow-y-auto bg-panel"
+        className="scrollbar font-mono text-[12px] leading-[1.65] p-4 max-h-[596px] min-h-[560px] overflow-y-auto bg-panel"
       >
         {lines.map((l, i) => (
           <div key={i} className="flex gap-3 whitespace-pre-wrap break-all">
@@ -643,6 +644,11 @@ function Verification({ phase, benchmark, wallet, portaldot, walletSubmit }: {
             <Field k="chunks"    v={benchmark ? String(benchmark.num_chunks) : '—'} />
             <Field k="items"     v={benchmark ? String(benchmark.total_items) : '—'} />
             <Field k="total_s"   v={benchmark ? benchmark.total_s.toFixed(3) + 's' : '—'} />
+            <Field
+              k="service fee"
+              v={benchmark ? `${formatPot(feeForChunks(benchmark.num_chunks))} POT` : '—'}
+              good={verified}
+            />
             <Field k="verified"  v={verified ? '✓ on-chain' : '—'} good={verified} />
           </div>
         </div>
@@ -707,6 +713,17 @@ function WalletSubmitPanel({ phase, benchmark, wallet, portaldot, state }: {
         </span>
       </div>
       <div className="px-4 py-4 flex flex-col gap-3">
+        {benchmark && (
+          <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.14em] uppercase">
+            <span className="text-mute2">pot-as-gas · service fee</span>
+            <span className="text-accent">
+              {formatPot(feeForChunks(benchmark.num_chunks))} POT
+              <span className="text-mute2 ml-2 normal-case tracking-normal">
+                ({formatPot(feeForChunks(1))} × {benchmark.num_chunks} chunks)
+              </span>
+            </span>
+          </div>
+        )}
         <button
           onClick={state.submit}
           disabled={!ready || state.busy}
@@ -747,32 +764,6 @@ function Field({ k, v, good }: { k: string; v: string; good?: boolean }) {
     <div className="flex items-baseline justify-between gap-3 border-b border-line/60 pb-2">
       <span className="text-mute2 tracking-[0.12em] uppercase text-[10px]">{k}</span>
       <span className={cx('tabular-nums', good ? 'text-accent' : 'text-ink')}>{v}</span>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Network banner — names the active endpoint so the demo is honest about it
-// ─────────────────────────────────────────────────────────────────────────────
-
-function NetworkBanner({ portaldot }: { portaldot: PortaldotConfig | null }) {
-  if (!portaldot) return null
-  const ws = portaldot.ws
-  const isLocal = /^wss?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(ws)
-  return (
-    <div className="border border-accent/40 bg-accent/[0.04] px-5 py-3 flex items-center justify-between gap-4">
-      <div className="flex items-center gap-3">
-        <span className="w-1.5 h-1.5 bg-accent shrink-0" />
-        <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-accent">
-          {isLocal ? 'local dev node' : 'remote endpoint'}
-        </span>
-        <span className="font-mono text-[12px] text-mute">
-          Connected to <span className="text-ink">{ws}</span>
-        </span>
-      </div>
-      <span className="font-mono text-[10px] text-mute2 text-right">
-        running on a local Portaldot-compatible dev environment
-      </span>
     </div>
   )
 }
@@ -997,7 +988,6 @@ export default function App() {
 
       <main className="max-w-[1480px] mx-auto px-8 py-8 space-y-6">
 
-        <NetworkBanner portaldot={portaldot} />
         <StatusStrip phase={phase} chunkProgress={chunkProgress} />
         <Pipeline phase={phase} chunkProgress={chunkProgress} running={running} contract={benchmark?.on_chain?.contract || portaldot?.contract} rpc={portaldot?.ws} />
         {benchmark?.dataset && <Dataset dataset={benchmark.dataset} chunkSize={benchmark.chunk_size} />}

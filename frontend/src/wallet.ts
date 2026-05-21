@@ -26,11 +26,29 @@ export interface SubmitArgs {
   signature: string
 }
 
+/// POT-as-gas: service fee charged per aggregated chunk, in POT base units
+/// (12 decimals). Must match FEE_PER_CHUNK in the ink! contract.
+export const FEE_PER_CHUNK: bigint = 10_000_000_000n
+export const POT_DECIMALS = 12
+
+export function feeForChunks(numChunks: number): bigint {
+  return FEE_PER_CHUNK * BigInt(numChunks)
+}
+
+export function formatPot(units: bigint, frac = 4): string {
+  const base = 10n ** BigInt(POT_DECIMALS)
+  const whole = units / base
+  const rem = units % base
+  const fracStr = rem.toString().padStart(POT_DECIMALS, '0').slice(0, frac).replace(/0+$/, '')
+  return fracStr.length ? `${whole}.${fracStr}` : `${whole}`
+}
+
 export interface SubmitProgress {
   stage: 'idle' | 'connecting' | 'building' | 'signing' | 'broadcasting' | 'in-block' | 'finalized' | 'error'
   message: string
   txHash?: string
   blockHash?: string
+  feePaid?: string
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -158,15 +176,17 @@ export async function submitVerifiedRoot(
     proofSize: 200_000,
   })
   const storageDepositLimit = null
+  const fee = feeForChunks(args.numChunks)
+  const feePotStr = `${formatPot(fee)} POT`
 
-  onProgress({ stage: 'signing', message: 'awaiting wallet signature' })
+  onProgress({ stage: 'signing', message: `awaiting wallet signature — service fee ${feePotStr}`, feePaid: feePotStr })
   const { web3FromAddress } = await import('@polkadot/extension-dapp')
   const injector = await web3FromAddress(account.address)
 
   return new Promise<void>((resolveTx, rejectTx) => {
     contract.tx
       .submitVerifiedRoot(
-        { gasLimit: gasLimit as unknown as undefined, storageDepositLimit },
+        { gasLimit: gasLimit as unknown as undefined, storageDepositLimit, value: fee },
         args.root,
         args.blockHash,
         args.numChunks,
@@ -177,27 +197,29 @@ export async function submitVerifiedRoot(
       // but TS sees two distinct Signer types.
       .signAndSend(account.address, { signer: injector.signer as never }, (result) => {
         if (result.status.isReady) {
-          onProgress({ stage: 'broadcasting', message: 'broadcasting tx', txHash: result.txHash.toHex() })
+          onProgress({ stage: 'broadcasting', message: 'broadcasting tx', txHash: result.txHash.toHex(), feePaid: feePotStr })
         } else if (result.status.isInBlock) {
           onProgress({
             stage: 'in-block',
             message: 'included in block',
             txHash: result.txHash.toHex(),
             blockHash: result.status.asInBlock.toHex(),
+            feePaid: feePotStr,
           })
         } else if (result.status.isFinalized) {
           const failed = result.events.find(({ event }) =>
             api.events.system.ExtrinsicFailed.is(event),
           )
           if (failed) {
-            rejectTx(new Error('extrinsic failed — likely InvalidSignature or AlreadyVerified'))
+            rejectTx(new Error('extrinsic failed — likely InsufficientFee, InvalidSignature, or AlreadyVerified'))
             return
           }
           onProgress({
             stage: 'finalized',
-            message: 'finalized — ProofVerified emitted',
+            message: `finalized — ${feePotStr} paid, ProofVerified emitted`,
             txHash: result.txHash.toHex(),
             blockHash: result.status.asFinalized.toHex(),
+            feePaid: feePotStr,
           })
           resolveTx()
         } else if (result.isError) {
