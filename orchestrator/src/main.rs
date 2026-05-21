@@ -507,7 +507,13 @@ fn submit_to_ink_contract(
         return (true, contract);
     }
 
-    println!("[ink] Submitting to Portaldot contract {}...", contract);
+    // POT-as-gas: submit_verified_root is payable and requires
+    // FEE_PER_CHUNK (0.01 POT = 10_000_000_000 base units) × num_chunks.
+    // Keep this constant in sync with FEE_PER_CHUNK in the ink! contract.
+    const FEE_PER_CHUNK: u128 = 10_000_000_000;
+    let value = (FEE_PER_CHUNK as u128).saturating_mul(num_chunks as u128).to_string();
+
+    println!("[ink] Submitting to Portaldot contract {} (paying {} base units)...", contract, value);
     let output = Command::new("cargo")
         .args([
             "contract", "call",
@@ -519,6 +525,7 @@ fn submit_to_ink_contract(
             &num_chunks.to_string(),
             &total_items.to_string(),
             &format!("\"{signature_hex}\""),
+            "--value", &value,
             "--suri", &suri,
             "--execute",
             "--skip-confirm",
