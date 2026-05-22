@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Aggregato — Parallel ZK Proof Aggregation</title>
+<title>Aggregato</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -305,17 +305,6 @@
     // No React needed for this static landing — but we hydrate a few <ComponentName> tags
     // with simple template expansion so the markup stays readable above.
     const T = {
-      Line: ({ ts, tag, body, hex, ok }) => `
-        <div class="flex gap-3"><span class="text-mute2">${ts}</span>
-        <span class="flex-1"><span class="text-accentDk">[${tag}]</span>
-        ${hex ? `<span class="text-ink"> root </span><span class="text-accent">${hex}</span>` :
-          `<span class="${ok ? 'text-accent' : 'text-ink'}"> ${body}${ok ? ' ✓' : ''}</span>`}
-        </span></div>`,
-      Stat: ({ k, v, accent }) => `
-        <div class="bg-panel p-5">
-          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">${k}</div>
-          <div class="mt-2 text-[24px] ${accent ? 'text-accent' : 'text-ink'} tabular-nums">${v}</div>
-        </div>`,
       SectionHeader: ({ title }) => `
         <div>
           <h2 class="text-[40px] leading-[1.1] font-medium tracking-tight">${title}</h2>
@@ -362,26 +351,6 @@
           <span class="text-mute2 tracking-[0.12em] uppercase text-[10px]">${k}</span>
           <span class="${accent ? 'text-accent' : 'text-ink'} tabular-nums"${bench ? ` data-bench="${bench}"` : ''}>${v}</span>
         </div>`,
-      StackCell: ({ k, v, sub }) => `
-        <div class="bg-panel p-6">
-          <div class="text-[10px] tracking-[0.18em] uppercase text-mute2">${k}</div>
-          <div class="mt-3 text-[20px] text-ink">${v}</div>
-          <div class="mt-1 text-[11px] text-mute">${sub}</div>
-        </div>`,
-      Phase: ({ n, label, title, body, state }) => {
-        const ring = state === 'done' ? 'bg-accent' : state === 'active' ? 'border border-accent bg-bg' : 'border border-line2 bg-bg';
-        const tag  = state === 'done' ? 'shipped' : state === 'active' ? 'in progress' : 'next';
-        const tagC = state === 'done' ? 'text-accent' : state === 'active' ? 'text-warn' : 'text-mute2';
-        return `<div class="bg-panel p-6 flex flex-col">
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] tracking-[0.18em] uppercase text-mute2">${n} · ${label}</span>
-            <span class="w-2.5 h-2.5 ${ring}"></span>
-          </div>
-          <h4 class="mt-5 text-[17px] font-medium tracking-tight">${title}</h4>
-          <p class="mt-2 text-[12px] text-mute leading-relaxed flex-1">${body}</p>
-          <div class="mt-5 text-[10px] tracking-[0.16em] uppercase ${tagC}">${tag}</div>
-        </div>`;
-      },
     };
 
     function hydrate(root) {
