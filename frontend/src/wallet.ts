@@ -196,15 +196,21 @@ export async function submitVerifiedRoot(
   const { web3FromAddress } = await import('@polkadot/extension-dapp')
   const injector = await web3FromAddress(account.address)
 
+  // @polkadot/api-contract auto-decodes any `0x`-prefixed string passed for a
+  // `String`-typed argument into raw bytes, which corrupts the SCALE-encoded
+  // String the contract actually receives. Strip the prefix so the contract
+  // sees the literal 64/128-char hex text its `parse_hex_root` expects.
+  const stripHex = (h: string) => (h.startsWith('0x') ? h.slice(2) : h)
+
   return new Promise<void>((resolveTx, rejectTx) => {
     contract.tx
       .submitVerifiedRoot(
         { gasLimit: gasLimit as unknown as undefined, storageDepositLimit, value: fee },
-        args.root,
-        args.blockHash,
+        stripHex(args.root),
+        stripHex(args.blockHash),
         args.numChunks,
         args.totalItems,
-        args.signature,
+        stripHex(args.signature),
       )
       // Cast: extension-inject ships its own @polkadot/types; structurally identical
       // but TS sees two distinct Signer types.
