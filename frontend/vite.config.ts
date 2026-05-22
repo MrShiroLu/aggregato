@@ -112,6 +112,7 @@ export default defineConfig({
           res.end(JSON.stringify({
             ws: process.env.PORTALDOT_WS ?? 'ws://127.0.0.1:9944',
             contract: process.env.CONTRACT_ADDRESS ?? '',
+            explorer: process.env.PORTALDOT_EXPLORER ?? '',
           }))
         })
 

@@ -16,6 +16,19 @@ export interface WalletState {
 export interface PortaldotConfig {
   ws: string
   contract: string
+  /// Subscan-style explorer base URL (no trailing slash), e.g. https://shibuya.subscan.io.
+  /// Optional — when empty the UI falls back to a Polkadot.js Apps link built from `ws`.
+  explorer?: string
+}
+
+export function explorerExtrinsicUrl(cfg: PortaldotConfig, txHash: string): string {
+  if (cfg.explorer) return `${cfg.explorer.replace(/\/$/, '')}/extrinsic/${txHash}`
+  return `https://polkadot.js.org/apps/?rpc=${encodeURIComponent(cfg.ws)}#/explorer/query/${txHash}`
+}
+
+export function explorerBlockUrl(cfg: PortaldotConfig, blockHash: string): string {
+  if (cfg.explorer) return `${cfg.explorer.replace(/\/$/, '')}/block/${blockHash}`
+  return `https://polkadot.js.org/apps/?rpc=${encodeURIComponent(cfg.ws)}#/explorer/query/${blockHash}`
 }
 
 export interface SubmitArgs {

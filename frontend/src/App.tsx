@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import {
   useWallet, usePortaldotConfig, submitVerifiedRoot, shortAddr,
-  feeForChunks, formatPot,
+  feeForChunks, formatPot, explorerExtrinsicUrl, explorerBlockUrl,
   type SubmitProgress, type WalletState, type PortaldotConfig,
 } from './wallet'
 import type { InjectedAccountWithMeta } from '@polkadot/extension-inject/types'
@@ -519,7 +519,7 @@ function colorizeLine(text: string): React.ReactNode[] {
   return out
 }
 
-function Terminal({ lines, running }: { lines: { ts: number; text: string }[]; running: boolean; runId: number }) {
+function Terminal({ lines, running }: { lines: { ts: number; text: string }[]; running: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -744,14 +744,42 @@ function WalletSubmitPanel({ phase, benchmark, wallet, portaldot, state }: {
             <span className="text-mute2 mr-2">{stage}</span>{state.progress.message}
           </div>
         )}
+        {state.progress.feePaid && (stage === 'in-block' || stage === 'finalized') && (
+          <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.14em] uppercase">
+            <span className="text-mute2">fee paid on-chain</span>
+            <span className="text-ok">{state.progress.feePaid}</span>
+          </div>
+        )}
         {state.progress.txHash && (
-          <div className="font-mono text-[10px] text-mute break-all">
-            <span className="text-mute2 mr-2">tx</span>{state.progress.txHash}
+          <div className="font-mono text-[10px] text-mute break-all flex items-baseline gap-2">
+            <span className="text-mute2 shrink-0">tx</span>
+            <span className="flex-1 break-all">{state.progress.txHash}</span>
+            {portaldot && (
+              <a
+                href={explorerExtrinsicUrl(portaldot, state.progress.txHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline tracking-[0.14em] uppercase shrink-0"
+              >
+                view ↗
+              </a>
+            )}
           </div>
         )}
         {state.progress.blockHash && (
-          <div className="font-mono text-[10px] text-mute break-all">
-            <span className="text-mute2 mr-2">blk</span>{state.progress.blockHash}
+          <div className="font-mono text-[10px] text-mute break-all flex items-baseline gap-2">
+            <span className="text-mute2 shrink-0">blk</span>
+            <span className="flex-1 break-all">{state.progress.blockHash}</span>
+            {portaldot && (
+              <a
+                href={explorerBlockUrl(portaldot, state.progress.blockHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline tracking-[0.14em] uppercase shrink-0"
+              >
+                view ↗
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -995,7 +1023,7 @@ export default function App() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3">
-            <Terminal lines={lines} running={running} runId={runId} />
+            <Terminal lines={lines} running={running} />
           </div>
           <div className="lg:col-span-2">
             <Verification
