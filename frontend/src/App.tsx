@@ -55,6 +55,68 @@ interface BenchmarkData {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CHUNKS = 8
+const CHUNK_SIZE = 8
+const TOTAL_ITEMS = CHUNKS * CHUNK_SIZE
+
+type DatasetSource = 'demo' | 'generate' | 'upload'
+
+function randomU64Decimal(): string {
+  // u64 in [0, 2^63) as decimal string. Safe across Rust/JSON.
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  bytes[0] &= 0x7f
+  let n = 0n
+  for (const b of bytes) n = (n << 8n) | BigInt(b)
+  return n.toString()
+}
+
+function randomAddrHex(): string {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  return '0x' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function generateRandomDataset(count: number): DatasetMeta {
+  const items: DatasetItem[] = []
+  for (let i = 0; i < count; i++) {
+    items.push({
+      from:    randomAddrHex(),
+      to:      randomAddrHex(),
+      amount:  Math.floor(Math.random() * 9_900_000) + 100_000,
+      nonce:   i,
+      preimage: randomU64Decimal(),
+    })
+  }
+  return {
+    kind: 'rollup_tx_batch',
+    name: `generated-${count}`,
+    description: `Browser-generated random transaction batch (${count} items, fresh per run).`,
+    items,
+  }
+}
+
+function validateDataset(raw: unknown, expectedCount: number): DatasetMeta {
+  if (!raw || typeof raw !== 'object') throw new Error('dataset must be a JSON object')
+  const ds = raw as Partial<DatasetMeta>
+  if (!Array.isArray(ds.items)) throw new Error('dataset.items must be an array')
+  if (ds.items.length !== expectedCount) {
+    throw new Error(`dataset must contain exactly ${expectedCount} items (got ${ds.items.length})`)
+  }
+  for (let i = 0; i < ds.items.length; i++) {
+    const it = ds.items[i] as Partial<DatasetItem>
+    if (typeof it.from !== 'string' || typeof it.to !== 'string'
+        || typeof it.amount !== 'number' || typeof it.nonce !== 'number'
+        || typeof it.preimage !== 'string') {
+      throw new Error(`item #${i} is missing required fields (from/to/amount/nonce/preimage)`)
+    }
+  }
+  return {
+    kind: ds.kind ?? 'rollup_tx_batch',
+    name: ds.name ?? 'uploaded',
+    description: ds.description ?? 'User-uploaded transaction batch.',
+    items: ds.items as DatasetItem[],
+  }
+}
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -359,7 +421,7 @@ function partyLabel(name: string | undefined, addr: string): string {
   return addr.length > 10 ? `${addr.slice(0, 4)}…${addr.slice(-3)}` : addr
 }
 
-function Dataset({ dataset, chunkSize }: { dataset: DatasetMeta; chunkSize: number }) {
+function Dataset({ dataset, chunkSize, preview = false }: { dataset: DatasetMeta; chunkSize: number; preview?: boolean }) {
   const chunks: DatasetItem[][] = []
   for (let i = 0; i < dataset.items.length; i += chunkSize) {
     chunks.push(dataset.items.slice(i, i + chunkSize))
@@ -368,9 +430,10 @@ function Dataset({ dataset, chunkSize }: { dataset: DatasetMeta; chunkSize: numb
   return (
     <Panel
       kicker="02"
-      title="Dataset"
+      title={preview ? 'Dataset (preview)' : 'Dataset'}
       right={
         <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-mute2">
+          {preview && <span className="text-accent mr-2">● pending run</span>}
           {dataset.kind.replace(/_/g, ' ')} · {dataset.items.length} items
         </span>
       }
@@ -842,6 +905,121 @@ function KV({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Dataset source picker
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DatasetSourcePanel({ source, onSourceChange, dataset, onDataset, disabled }: {
+  source: DatasetSource
+  onSourceChange: (s: DatasetSource) => void
+  dataset: DatasetMeta | null
+  onDataset: (d: DatasetMeta | null) => void
+  disabled: boolean
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const pick = (s: DatasetSource) => {
+    if (disabled) return
+    setError(null)
+    onSourceChange(s)
+    if (s === 'demo') {
+      onDataset(null)
+    } else if (s === 'generate') {
+      onDataset(generateRandomDataset(TOTAL_ITEMS))
+    } else {
+      onDataset(null)
+      setTimeout(() => fileRef.current?.click(), 0)
+    }
+  }
+
+  const handleFile = async (file: File) => {
+    setError(null)
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const ds = validateDataset(parsed, TOTAL_ITEMS)
+      onDataset(ds)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      onDataset(null)
+    }
+  }
+
+  const regenerate = () => {
+    if (disabled) return
+    onDataset(generateRandomDataset(TOTAL_ITEMS))
+  }
+
+  const Badge = ({ s, label, sub }: { s: DatasetSource; label: string; sub: string }) => {
+    const active = source === s
+    return (
+      <button
+        onClick={() => pick(s)}
+        disabled={disabled}
+        className={cx(
+          'flex-1 text-left px-4 py-3 border transition-colors',
+          active ? 'border-accent bg-accent/10' : 'border-line hover:border-line2',
+          disabled && 'opacity-50 cursor-not-allowed',
+        )}
+      >
+        <div className={cx('font-mono text-[10px] tracking-[0.16em] uppercase',
+          active ? 'text-accent' : 'text-mute2')}>
+          {label}
+        </div>
+        <div className="text-[11px] text-mute mt-1">{sub}</div>
+      </button>
+    )
+  }
+
+  const status =
+    source === 'demo'     ? `bundled demo · ${TOTAL_ITEMS} items`
+    : source === 'generate' ? (dataset ? `generated · ${dataset.items.length} items (fresh per click)` : 'no batch generated yet')
+    : (dataset ? `uploaded · ${dataset.name} · ${dataset.items.length} items` : 'choose a JSON file…')
+
+  return (
+    <Panel
+      kicker="00"
+      title="Dataset source"
+      right={<span className="font-mono text-[10px] tracking-[0.14em] uppercase text-mute2">input to refine phase</span>}
+    >
+      <div className="p-5 space-y-3">
+        <div className="flex gap-2">
+          <Badge s="demo"     label="Demo fixture"  sub={`bundled txs_${TOTAL_ITEMS}.json`} />
+          <Badge s="generate" label="Generate"      sub="random batch in browser" />
+          <Badge s="upload"   label="Upload JSON"   sub="bring your own batch" />
+        </div>
+        <div className="flex items-center justify-between font-mono text-[10px] text-mute">
+          <span>{status}</span>
+          {source === 'generate' && dataset && (
+            <button
+              onClick={regenerate}
+              disabled={disabled}
+              className="text-accent hover:underline tracking-[0.14em] uppercase disabled:opacity-50"
+            >
+              ↻ re-roll
+            </button>
+          )}
+        </div>
+        {error && (
+          <div className="font-mono text-[10px] text-err break-all">{error}</div>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0]
+            if (f) handleFile(f)
+            e.target.value = ''
+          }}
+        />
+      </div>
+    </Panel>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Benchmark polling hook
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -876,6 +1054,7 @@ function useRunMachine() {
   const [chunkProgress, setChunkProgress] = useState<number[]>(Array(CHUNKS).fill(1))
   const [lines, setLines]                 = useState<{ ts: number; text: string }[]>([])
   const [orchRunning, setOrchRunning]     = useState(false)
+  const [hasRun, setHasRun]               = useState(false)
   const sinceRef       = useRef(0)
   const seenRunIdRef   = useRef<number | null>(null)
 
@@ -926,24 +1105,27 @@ function useRunMachine() {
     return () => { cancelled = true; clearInterval(id) }
   }, [orchRunning])
 
-  const run = useCallback((opts?: { walletSubmit?: boolean }) => {
+  const run = useCallback((opts?: { walletSubmit?: boolean; dataset?: DatasetMeta | null }) => {
+    setHasRun(true)
     setOrchRunning(true)
     setPhase('refine')
     setChunkProgress(Array(CHUNKS).fill(0))
     setLines([])
     sinceRef.current = 0
+    const body: Record<string, unknown> = {
+      num_chunks: CHUNKS,
+      wallet_submit: Boolean(opts?.walletSubmit),
+    }
+    if (opts?.dataset) body.dataset_inline = opts.dataset
     fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        num_chunks: CHUNKS,
-        wallet_submit: Boolean(opts?.walletSubmit),
-      }),
+      body: JSON.stringify(body),
     }).catch(() => { setOrchRunning(false) })
   }, [])
 
   const running = orchRunning
-  return { runId, phase, running, chunkProgress, lines, run }
+  return { runId, phase, running, chunkProgress, lines, run, hasRun }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -994,15 +1176,18 @@ function useWalletSubmit(
 
 export default function App() {
   const benchmark = useBenchmark(3000)
-  const { runId, phase, running, chunkProgress, lines, run } = useRunMachine()
+  const { runId, phase, running, chunkProgress, lines, run, hasRun } = useRunMachine()
   const { state: wallet, connect } = useWallet()
   const portaldot   = usePortaldotConfig()
   const walletSubmit = useWalletSubmit(benchmark, wallet, portaldot)
+  const [datasetSource, setDatasetSource] = useState<DatasetSource>('demo')
+  const [customDataset, setCustomDataset] = useState<DatasetMeta | null>(null)
 
   const runWithMaybeWallet = useCallback(() => {
     if (wallet.status !== 'connected' || !wallet.account) return
-    run({ walletSubmit: true })
-  }, [run, wallet.status, wallet.account])
+    if (datasetSource !== 'demo' && !customDataset) return
+    run({ walletSubmit: true, dataset: customDataset })
+  }, [run, wallet.status, wallet.account, datasetSource, customDataset])
 
   return (
     <div className="min-h-screen">
@@ -1016,9 +1201,22 @@ export default function App() {
 
       <main className="max-w-[1480px] mx-auto px-8 py-8 space-y-6">
 
+        <DatasetSourcePanel
+          source={datasetSource}
+          onSourceChange={setDatasetSource}
+          dataset={customDataset}
+          onDataset={setCustomDataset}
+          disabled={running}
+        />
         <StatusStrip phase={phase} chunkProgress={chunkProgress} />
         <Pipeline phase={phase} chunkProgress={chunkProgress} running={running} contract={benchmark?.on_chain?.contract || portaldot?.contract} rpc={portaldot?.ws} />
-        {benchmark?.dataset && <Dataset dataset={benchmark.dataset} chunkSize={benchmark.chunk_size} />}
+        {(customDataset || (hasRun && benchmark?.dataset)) && (
+          <Dataset
+            dataset={(customDataset ?? benchmark!.dataset)!}
+            chunkSize={benchmark?.chunk_size ?? CHUNK_SIZE}
+            preview={Boolean(customDataset)}
+          />
+        )}
         <Metrics phase={phase} benchmark={benchmark} />
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

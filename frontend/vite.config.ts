@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import fs from 'fs'
+import os from 'os'
 import { spawn } from 'child_process'
 
 type Phase = 'idle' | 'refine' | 'accumulate' | 'ontransfer' | 'done'
@@ -146,12 +147,23 @@ export default defineConfig({
             let num_chunks = 8
             let walletSubmit = false
             let dataset: string | undefined
+            let tempDataset: string | undefined
+            let datasetLabel: string | undefined
             try {
               const parsed = JSON.parse(body)
               num_chunks = parsed.num_chunks ?? 8
               walletSubmit = Boolean(parsed.wallet_submit)
               if (typeof parsed.dataset === 'string' && parsed.dataset.length > 0) {
                 dataset = parsed.dataset
+              }
+              if (parsed.dataset_inline && typeof parsed.dataset_inline === 'object') {
+                const tmpPath = resolve(os.tmpdir(), `aggregato_run_${Date.now()}_${runId + 1}.json`)
+                fs.writeFileSync(tmpPath, JSON.stringify(parsed.dataset_inline))
+                dataset = tmpPath
+                tempDataset = tmpPath
+                datasetLabel = parsed.dataset_inline.name
+                  ? `inline:${parsed.dataset_inline.name}`
+                  : 'inline'
               }
             } catch { /* invalid JSON */ }
 
@@ -165,7 +177,8 @@ export default defineConfig({
             }
 
             resetRunState()
-            pushLine(`[orchestrator] starting run #${runId} (num_chunks=${num_chunks}${walletSubmit ? ', wallet_submit=true' : ''}${dataset ? `, dataset=${dataset.split('/').pop()}` : ''})`)
+            const labelForLog = datasetLabel ?? (dataset ? dataset.split('/').pop() : undefined)
+            pushLine(`[orchestrator] starting run #${runId} (num_chunks=${num_chunks}${walletSubmit ? ', wallet_submit=true' : ''}${labelForLog ? `, dataset=${labelForLog}` : ''})`)
 
             const childEnv: NodeJS.ProcessEnv = { ...process.env }
             if (walletSubmit) childEnv.SKIP_ONCHAIN = '1'
@@ -185,6 +198,9 @@ export default defineConfig({
               currentPhase = 'done'
               for (let i = 0; i < chunkProgress.length; i++) chunkProgress[i] = 1
               orchProc = null
+              if (tempDataset) {
+                fs.unlink(tempDataset, () => {})
+              }
             })
             res.end(JSON.stringify({ ok: true, runId }))
           })
