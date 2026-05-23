@@ -819,7 +819,7 @@ function WalletSubmitPanel({ phase, benchmark, wallet, portaldot, state }: {
             <span className="flex-1 break-all">{state.progress.txHash}</span>
             {portaldot && (
               <a
-                href={explorerExtrinsicUrl(portaldot, state.progress.txHash)}
+                href={explorerExtrinsicUrl(portaldot, state.progress.txHash, state.progress.blockHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent hover:underline tracking-[0.14em] uppercase shrink-0"

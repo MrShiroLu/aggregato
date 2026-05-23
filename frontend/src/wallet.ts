@@ -21,9 +21,12 @@ export interface PortaldotConfig {
   explorer?: string
 }
 
-export function explorerExtrinsicUrl(cfg: PortaldotConfig, txHash: string): string {
+export function explorerExtrinsicUrl(cfg: PortaldotConfig, txHash: string, blockHash?: string): string {
   if (cfg.explorer) return `${cfg.explorer.replace(/\/$/, '')}/extrinsic/${txHash}`
-  return `https://polkadot.js.org/apps/?rpc=${encodeURIComponent(cfg.ws)}#/explorer/query/${txHash}`
+  // Polkadot.js Apps' explorer/query route only resolves block hashes, not extrinsic hashes.
+  // Link to the including block (its detail view lists the extrinsic) when we know it.
+  const hash = blockHash ?? txHash
+  return `https://polkadot.js.org/apps/?rpc=${encodeURIComponent(cfg.ws)}#/explorer/query/${hash}`
 }
 
 export function explorerBlockUrl(cfg: PortaldotConfig, blockHash: string): string {
@@ -165,6 +168,19 @@ async function getApi(ws: string): Promise<ApiPromise> {
   return api
 }
 
+/// Maps an ink! contract `Error` variant name to an actionable hint.
+function contractErrorHint(variant: string): string {
+  switch (variant) {
+    case 'AlreadyVerified':   return 'this aggregated root was already submitted — pick "Generate" in the dataset picker and re-run to get a fresh root'
+    case 'InsufficientFee':   return 'transferred value is below the per-chunk service fee'
+    case 'InvalidSignature':  return 'signature/pubkey mismatch — the prover key the contract was deployed with does not match the signer'
+    case 'InvalidRootFormat': return 'root or block hash is not valid 64-char hex'
+    case 'NotOwner':          return 'caller is not the contract owner'
+    case 'TransferFailed':    return 'fee transfer to the owner failed'
+    default:                  return 'see the contract Error enum'
+  }
+}
+
 export async function submitVerifiedRoot(
   cfg: PortaldotConfig,
   account: InjectedAccountWithMeta,
@@ -201,17 +217,36 @@ export async function submitVerifiedRoot(
   // String the contract actually receives. Strip the prefix so the contract
   // sees the literal 64/128-char hex text its `parse_hex_root` expects.
   const stripHex = (h: string) => (h.startsWith('0x') ? h.slice(2) : h)
+  const callArgs = [
+    stripHex(args.root),
+    stripHex(args.blockHash),
+    args.numChunks,
+    args.totalItems,
+    stripHex(args.signature),
+  ] as const
+  const callOpts = { gasLimit: gasLimit as unknown as undefined, storageDepositLimit, value: fee }
+
+  // Pre-flight via a dry-run query so we surface the exact contract Error
+  // variant (AlreadyVerified, InsufficientFee, …) before the user signs and
+  // pays gas. Without this the only signal is a generic ExtrinsicFailed event
+  // at finalization, which can't distinguish the cause.
+  onProgress({ stage: 'building', message: 'simulating submission', feePaid: feePotStr })
+  const dry = await contract.query.submitVerifiedRoot(account.address, callOpts, ...callArgs)
+  if (dry.result.isErr) {
+    throw new Error(`dry-run reverted: ${dry.result.asErr.toString()}`)
+  }
+  // ink! wraps the message return as Result<Result<(), Error>, LangError>.
+  // toJSON() casing varies by metadata, so probe both Ok/ok and Err/err.
+  const j = dry.output?.toJSON() as { ok?: unknown; Ok?: unknown } | null
+  const inner = (j?.ok ?? j?.Ok ?? j) as { err?: string; Err?: string } | null
+  const errVariant = inner?.err ?? inner?.Err
+  if (errVariant) {
+    throw new Error(`${errVariant} — ${contractErrorHint(errVariant)}`)
+  }
 
   return new Promise<void>((resolveTx, rejectTx) => {
     contract.tx
-      .submitVerifiedRoot(
-        { gasLimit: gasLimit as unknown as undefined, storageDepositLimit, value: fee },
-        stripHex(args.root),
-        stripHex(args.blockHash),
-        args.numChunks,
-        args.totalItems,
-        stripHex(args.signature),
-      )
+      .submitVerifiedRoot(callOpts, ...callArgs)
       // Cast: extension-inject ships its own @polkadot/types; structurally identical
       // but TS sees two distinct Signer types.
       .signAndSend(account.address, { signer: injector.signer as never }, (result) => {
@@ -230,7 +265,10 @@ export async function submitVerifiedRoot(
             api.events.system.ExtrinsicFailed.is(event),
           )
           if (failed) {
-            rejectTx(new Error('extrinsic failed — likely InsufficientFee, InvalidSignature, or AlreadyVerified'))
+            // The dry-run above already filters known contract reverts, so a
+            // failure here is something that only shows up on-chain (state
+            // changed between dry-run and inclusion, or a dispatch-level error).
+            rejectTx(new Error('extrinsic failed on-chain after a clean dry-run — root may have been submitted by another tx in between'))
             return
           }
           onProgress({
