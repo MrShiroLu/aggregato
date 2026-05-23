@@ -51,6 +51,14 @@ export function feeForChunks(numChunks: number): bigint {
   return FEE_PER_CHUNK * BigInt(numChunks)
 }
 
+/// @polkadot/api-contract auto-decodes any `0x`-prefixed string passed for a
+/// `String`-typed argument into raw bytes, which corrupts the SCALE-encoded
+/// String the contract actually receives. Strip the prefix so the contract
+/// sees the literal 64/128-char hex text its `parse_hex_root` expects.
+export function stripHexPrefix(h: string): string {
+  return h.startsWith('0x') ? h.slice(2) : h
+}
+
 export function formatPot(units: bigint, frac = 4): string {
   const base = 10n ** BigInt(POT_DECIMALS)
   const whole = units / base
@@ -212,17 +220,14 @@ export async function submitVerifiedRoot(
   const { web3FromAddress } = await import('@polkadot/extension-dapp')
   const injector = await web3FromAddress(account.address)
 
-  // @polkadot/api-contract auto-decodes any `0x`-prefixed string passed for a
-  // `String`-typed argument into raw bytes, which corrupts the SCALE-encoded
-  // String the contract actually receives. Strip the prefix so the contract
-  // sees the literal 64/128-char hex text its `parse_hex_root` expects.
-  const stripHex = (h: string) => (h.startsWith('0x') ? h.slice(2) : h)
+  // Strip `0x` so the contract sees the literal hex text its `parse_hex_root`
+  // expects (see stripHexPrefix for the full SCALE-encoding rationale).
   const callArgs = [
-    stripHex(args.root),
-    stripHex(args.blockHash),
+    stripHexPrefix(args.root),
+    stripHexPrefix(args.blockHash),
     args.numChunks,
     args.totalItems,
-    stripHex(args.signature),
+    stripHexPrefix(args.signature),
   ] as const
   const callOpts = { gasLimit: gasLimit as unknown as undefined, storageDepositLimit, value: fee }
 
