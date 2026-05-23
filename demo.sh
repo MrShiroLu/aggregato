@@ -89,6 +89,10 @@ export PORTALDOT_WS CONTRACT_ADDRESS
 # ── 3. Start dashboard ────────────────────────────────────────────────────────
 echo -e "${B}[dashboard] Starting at http://localhost:3000 ...${R}"
 cd "$REPO_DIR/frontend"
+if [ ! -d node_modules ]; then
+  echo -e "${B}[dashboard] Installing frontend deps (first run)...${R}"
+  npm install >/tmp/npm-install.log 2>&1 || { echo -e "${Y}[dashboard] npm install failed — see /tmp/npm-install.log${R}"; exit 1; }
+fi
 npm run dev &>/tmp/dashboard.log &
 DASH_PID=$!
 sleep 2

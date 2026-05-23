@@ -93,6 +93,7 @@ aggregato/
 ### Prerequisites
 
 - Rust (stable + `nightly-2024-12-01` toolchain)
+- Node.js 18+ and `npm` (for the dashboard; `demo.sh` runs `npm install` automatically on first run)
 - Noir: `curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash && noirup`
 - Barretenberg: `bbup -v 0.82.1` (or compatible)
 - `cargo-contract 5.0.3`: `cargo install cargo-contract --version 5.0.3`
