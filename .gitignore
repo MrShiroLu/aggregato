@@ -21,8 +21,8 @@ benchmark_history.json
 /tmp/
 *.log
 
-# Local Claude settings
-.claude/settings.local.json
+# Local Claude settings (machine-local: lock files, local settings)
+.claude/
 
 # Notes
 NOTE*.md
